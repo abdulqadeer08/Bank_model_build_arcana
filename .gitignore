@@ -6,6 +6,6 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Ignore large datasets if needed (optional, keeping them for now as per data size < 100MB)
-# Bank Cash Optimization.xlsx
-# bank_cash_optimization_features.csv
+# Datasets
+*.xlsx
+*.csv
