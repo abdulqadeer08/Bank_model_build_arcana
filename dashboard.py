@@ -238,6 +238,8 @@ with st.sidebar:
         "📅 Cash Need Calendar",
         "🔍 Why This Amount? (SHAP)",
         "🔮 Branch Forecast",
+        "📈 Prophet Time Series",
+        "🕹️ What-If Simulator",
         "📊 Overview",
         "📈 Model Performance",
     ], label_visibility="collapsed")
@@ -597,3 +599,141 @@ elif page == "📈 Model Performance":
         er = eval_report[['Branch','Avg_Demand_M','MAE_M','MAPE_%','Trust_Level','Buffer_%','Recommended_M']].copy()
         st.dataframe(er, use_container_width=True, hide_index=True)
         st.info("Buffer Strategy: HIGH → 5% | MEDIUM → 12% | LOW → 30%")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 6: WHAT-IF SIMULATOR
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🕹️ What-If Simulator":
+    st.title("🕹️ What-If Simulator")
+    st.markdown("*Real-time AI scenario testing. Change variables and see how cash demand reacts.*")
+    st.markdown("---")
+
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("⚙️ Scenario Variables")
+        sel_br = st.selectbox("Select Branch", BRANCHES)
+        
+        fc_dates = forecast_df[forecast_df['Branch']==sel_br]['Date'].dt.date.tolist()
+        sel_date = st.selectbox("Select Target Date", fc_dates)
+        target_dt = pd.Timestamp(sel_date)
+        
+        # Get baseline features
+        base_feat = get_forecast_features(sel_br, target_dt)
+        
+        is_holiday = st.checkbox("Is Public Holiday?", value=bool(base_feat.get('Is_Holiday', False)))
+        is_salary = st.checkbox("Is Salary Day?", value=bool(base_feat.get('Is_Salary_Day', False)))
+        
+        # Sliders for continuous variables
+        st.markdown("**Historical Volume Adjustments**")
+        mult_30 = st.slider("30-Day Avg Volume Multiplier", 0.5, 2.0, 1.0, 0.1)
+        mult_7 = st.slider("7-Day Avg Volume Multiplier", 0.5, 2.0, 1.0, 0.1)
+        
+        if st.button("🚀 Run Simulation", use_container_width=True):
+            with st.spinner("Simulating AI Model..."):
+                # Apply changes
+                sim_feat = base_feat.copy()
+                if 'Is_Holiday' in sim_feat: sim_feat['Is_Holiday'] = int(is_holiday)
+                if 'Is_Salary_Day' in sim_feat: sim_feat['Is_Salary_Day'] = int(is_salary)
+                if 'rolling_30_mean_debit' in sim_feat: sim_feat['rolling_30_mean_debit'] *= mult_30
+                if 'rolling_7_mean_debit' in sim_feat: sim_feat['rolling_7_mean_debit'] *= mult_7
+                
+                # Check for V3 Model (Optuna + Log Transform)
+                try:
+                    v3_model = joblib.load('models/v3/model_Half_Day_Total_Debit.pkl')
+                    # V3 feature structure is slightly different (half daily). We will simulate using the V2 model for now, 
+                    # but if V3 gets fully integrated into dashboard.py, we will use it here.
+                    sim_model = model
+                except:
+                    sim_model = model
+                
+                # Baseline Prediction
+                X_base = pd.DataFrame([base_feat])[feature_cols]
+                base_pred = float(sim_model.predict(X_base)[0])
+                
+                # Simulated Prediction
+                X_sim = pd.DataFrame([sim_feat])[feature_cols]
+                sim_pred = float(sim_model.predict(X_sim)[0])
+                
+                diff = sim_pred - base_pred
+                pct_change = (diff / base_pred) * 100 if base_pred > 0 else 0
+                
+                # Render Results
+                with col2:
+                    st.subheader("📊 Simulation Results")
+                    st.markdown(f"Scenario for **Branch {sel_br}** on **{target_dt.strftime('%A, %d %B %Y')}**")
+                    
+                    sc1, sc2, sc3 = st.columns(3)
+                    sc1.metric("Original Prediction", f"{base_pred/1e6:.1f}M")
+                    sc2.metric("Simulated Prediction", f"{sim_pred/1e6:.1f}M", f"{diff/1e6:+.1f}M ({pct_change:+.1f}%)", delta_color="inverse")
+                    
+                    st.markdown("---")
+                    st.markdown("### Why did it change?")
+                    
+                    if diff > 0:
+                        st.success(f"The simulation caused an INCREASE of {diff/1e6:.1f} Million PKR.")
+                    elif diff < 0:
+                        st.info(f"The simulation caused a DECREASE of {abs(diff)/1e6:.1f} Million PKR.")
+                    else:
+                        st.warning("The simulation caused NO CHANGE in the predicted amount.")
+                        
+                    st.markdown("*Note: The model intelligently weights these features. For example, declaring a holiday on a weekend might have a different impact than on a weekday.*")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 7: PROPHET TIME SERIES
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "📈 Prophet Time Series":
+    st.title("📈 Prophet Time-Series Forecast")
+    st.markdown("*Advanced Time-Series Modeling (Meta Prophet) natively handling Holidays & Seasonality.*")
+    st.markdown("---")
+
+    try:
+        prophet_fc = pd.read_csv('models/prophet_forecast.csv')
+        prophet_fc['ds'] = pd.to_datetime(prophet_fc['ds'])
+        
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            sel_br = st.selectbox("Select Branch", prophet_fc['Branch'].unique())
+            
+        br_fc = prophet_fc[prophet_fc['Branch'] == sel_br].sort_values('ds')
+        
+        st.subheader(f"Future Cash Forecast (Branch {sel_br})")
+        fig, ax = plt.subplots(figsize=(14, 5))
+        
+        ax.plot(br_fc['ds'], br_fc['yhat']/1e6, color='#06b6d4', linewidth=2.5, label='Predicted Trend')
+        ax.fill_between(br_fc['ds'], br_fc['yhat_lower']/1e6, br_fc['yhat_upper']/1e6, color='#06b6d4', alpha=0.2, label='Confidence Interval')
+        
+        ax.set_title(f'Prophet Forecast (Next 30 Days)', color='#e0e0f0', fontweight='bold')
+        ax.set_ylabel('Million PKR', color='#c0c0d0')
+        ax.legend(facecolor='#1a1a2e', edgecolor='#444466', labelcolor='#c0c0d0')
+        ax.grid(True, alpha=0.3)
+        st.pyplot(fig); plt.close()
+        
+        st.markdown("---")
+        st.subheader("🔍 Time-Series Components Decomposition")
+        st.markdown("*Prophet explicitly separates the overall trend from weekly patterns.*")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            fig, ax = plt.subplots(figsize=(8, 4))
+            ax.plot(br_fc['ds'], br_fc['trend']/1e6, color='#8b5cf6', linewidth=2)
+            ax.set_title('Macro Trend (Is cash demand generally rising?)', color='#e0e0f0')
+            ax.grid(True, alpha=0.3)
+            st.pyplot(fig); plt.close()
+            
+        with c2:
+            fig, ax = plt.subplots(figsize=(8, 4))
+            # Extract one week of data to show the weekly pattern cleanly
+            weekly = br_fc.head(14).copy()
+            weekly['DayName'] = weekly['ds'].dt.day_name()
+            # Plot against day name
+            ax.bar(weekly['DayName'], weekly['weekly']/1e6, color='#10b981')
+            ax.set_title('Weekly Seasonality (Which days are busiest?)', color='#e0e0f0')
+            ax.grid(True, alpha=0.3)
+            plt.xticks(rotation=45)
+            st.pyplot(fig); plt.close()
+            
+    except Exception as e:
+        st.warning("Prophet Forecast data not found. Please run `ts_pipeline.py` first.")
+        st.code(str(e))
