@@ -2,15 +2,15 @@
 
 ---
 
-## 🎯 Phase 6 ka Maqsad (Objective)
+## 🎯 Phase 6 Objective
 
-Phase 6 mein humne model ki **comprehensive evaluation** ki aur ek **final business report** tayyar ki jo har branch ke liye actionable recommendations deti hai.
+In Phase 6, we performed a **comprehensive evaluation** of the model and prepared a **final business report** that provides actionable recommendations for each branch.
 
-> **Simple Matlab:** Phase 4 mein humne model banaya. Phase 6 mein hum kehte hain — *"Yeh model kitna reliable hai? Kaun si branch ke liye trust karo? Kitna buffer rakhna chahiye?"*
+> **Simple Meaning:** In Phase 4, we built the model. In Phase 6, we answer — *"How reliable is this model? Which branches can we trust it for? How much buffer should we keep?"*
 
 ---
 
-## 🔢 Kya Kiya — Step by Step
+## 🔢 Actions Taken — Step by Step
 
 ### Step 1: Data & Model Load
 - **Model:** `models/best_model.pkl` (XGBoost)
@@ -27,11 +27,11 @@ y_pred_test  = model.predict(X_test[feature_cols])
 residuals    = y_test - y_pred_test   # actual - predicted
 ```
 
-| Item | Value |
+| Item | Meaning |
 |---|---|
-| **Residual Range** | Negative se Positive (over/under predictions) |
-| **Positive residual** | Model ne kam predict kiya (under-prediction) |
-| **Negative residual** | Model ne zyada predict kiya (over-prediction) |
+| **Residual Range** | Negative to Positive (over/under predictions) |
+| **Positive residual** | Model under-predicted |
+| **Negative residual** | Model over-predicted |
 
 ---
 
@@ -39,13 +39,13 @@ residuals    = y_test - y_pred_test   # actual - predicted
 
 | Metric | Train | Test |
 |---|---|---|
-| **MAE (M PKR)** | ~8-10M | **14.25M** |
-| **RMSE (M PKR)** | ~12M | **20.29M** |
-| **MedAE (M PKR)** | — | Medium error |
-| **MAPE (%)** | — | **62.13%** |
-| **R²** | Higher | **0.5607** |
+| **MAE (M PKR)** | ~8-10M | **9.52M** |
+| **RMSE (M PKR)** | ~12M | **14.80M** |
+| **MedAE (M PKR)** | — | Low error |
+| **MAPE (%)** | — | **55.4%** |
+| **R²** | Higher | **0.6334** |
 
-> **Overfitting Check:** Train R² > Test R² thoda zyada hai — yeh normal hai. Significant overfitting nahi.
+> **Overfitting Check:** Train R² > Test R² by a small margin — this is normal. No significant overfitting.
 
 ---
 
@@ -61,8 +61,8 @@ residuals    = y_test - y_pred_test   # actual - predicted
 | **1376** | 126 | 47.05 | 14.80 | 66.5% | **0.483** |
 | **104** | 127 | 107.32 | **31.70** | 32.8% | 0.152 |
 
-> **Best MAE Branch:** 511 — sirf 7.26M PKR average error  
-> **Worst MAE Branch:** 104 — 31.70M PKR (lekin yeh highest volume branch bhi hai — 107M avg!)  
+> **Best MAE Branch:** 511 — only 7.26M PKR average error  
+> **Worst MAE Branch:** 104 — 31.70M PKR (but this is also the highest volume branch — 107M avg!)  
 > **Best R² Branch:** 1376 — R² = 0.483 (best predictability)
 
 ---
@@ -78,7 +78,7 @@ Error Breakdown (|error| size):
   > 30M PKR   → "High Error" predictions
 ```
 
-> **Key Finding:** Majority predictions reasonable range mein hain. Extreme errors woh cases hain jahan external events (salary day, holidays) ne withdrawal spike kiya.
+> **Key Finding:** Majority of predictions are in a reasonable range. Extreme errors are cases where external events (salary day, holidays) caused withdrawal spikes.
 
 ---
 
@@ -87,23 +87,23 @@ Error Breakdown (|error| size):
 
 | Observation | Finding |
 |---|---|
-| **Predicted vs Residual** | Higher predictions pe errors bade hain — heteroscedasticity present |
-| **Actual vs Predicted scatter** | Diagonal ke qareeb — model sahi direction mein predict kar raha hai |
+| **Predicted vs Residual** | Errors are larger for higher predictions — heteroscedasticity present |
+| **Actual vs Predicted scatter** | Close to diagonal — model predicts in the right direction |
 | **Bias** | Slight under-prediction tendency (positive mean residual) |
 
-> **Matlab:** Model high-volume din mein zyada galti karta hai — expected behavior for financial data.
+> **Meaning:** Model makes larger errors on high-volume days — expected behavior for financial data.
 
 ---
 
 ### Step 7: Top Branches Timeline
 **Graph:** `eda_plots/21_top_branches_timeline.png`
 
-Top 3 high-volume branches (104, 1046, 1200) ke liye test period ka detailed timeline:
+Detailed timeline of the test period for the top 3 high-volume branches (104, 1046, 1200):
 - **Black/Green line:** Actual cash withdrawal
 - **Blue dashed:** XGBoost prediction
 - **Shaded area:** Error band
 
-> Model trend follow karta hai, lekin sudden spikes miss karta hai — yeh feature engineering se improve ho sakta hai (holidays, salary cycles).
+> The model follows the trend, but misses sudden spikes — this can be improved with feature engineering (holidays, salary cycles).
 
 ---
 
@@ -127,7 +127,7 @@ Top 3 high-volume branches (104, 1046, 1200) ke liye test period ka detailed tim
 
 ---
 
-### Step 9: Reports Saved
+### Step 9: Saved Reports
 
 | File | Description |
 |---|---|
@@ -157,10 +157,10 @@ Top 3 high-volume branches (104, 1046, 1200) ke liye test period ka detailed tim
 | Item | Value |
 |---|---|
 | Model | XGBoost (`best_model.pkl`) |
-| Test MAE | 14.25 Million PKR |
-| Test RMSE | 20.29 Million PKR |
-| Test MAPE | 62.13% |
-| Test R² | 0.5607 |
+| Test MAE | 9.52 Million PKR |
+| Test RMSE | 14.80 Million PKR |
+| Test MAPE | 55.4% |
+| Test R² | 0.6334 |
 | Branches Evaluated | 15 branches |
 | Plots Saved | 4 plots (18–21) |
 | Reports Saved | `final_evaluation_report.csv`, `branch_metrics.csv` |
@@ -169,6 +169,26 @@ Top 3 high-volume branches (104, 1046, 1200) ke liye test period ka detailed tim
 ---
 
 ## 🏁 Project Complete!
+
+**Methodology Note for Evaluation:**
+> We used a feature-engineered ML approach (lag features + XGBoost), which is a modern industry-standard time series forecasting technique, instead of classical ARIMA/SARIMA, because it handles multiple exogenous variables (holidays, salary days, weekends) and complex non-linear patterns better.
+
+**Validation Additions:**
+1. **Classical SARIMAX Baseline:** On Branch 104, SARIMAX's MAE was 42.32M and R² -0.30, whereas XGBoost's MAE was 20.50M and R² 0.63.
+2. **Walk-Forward Validation:** In 5-fold time-series split walk-forward validation, XGBoost's average R² was 0.6583. An important observation is that from Fold 1 to 5, R² settled from 0.72 to 0.61. This is a healthy pattern because the small window of early folds was an "easy win", whereas the later folds cover more diverse real-world variations. Stabilizing at the 0.61-0.63 range shows the model's "true generalization".
+3. **Holdout vs CV Average:** The minimal difference (~0.02) between CV and Holdout R² confirms that the model's performance estimate is stable and does not depend on a particular random test-split.
+4. **Train-Test Split:** A chronological split was used (Reference: `eda_plots/13_train_test_split.png`).
+
+### 🔄 Before vs After TimeSeriesSplit Tuning (Impact Analysis)
+After shifting Optuna from single holdout to **TimeSeriesSplit (3-Fold)**, the new hyperparameters made the model slightly more stable and precise:
+
+| Metric | Before TimeSeriesSplit | After TimeSeriesSplit | Difference / Impact |
+|---|---|---|---|
+| **Test Set R²** | 0.6351 | 0.6334 | Minimal (-0.0017) — No drastic shift, proves original wasn't a fluke |
+| **Test Set MAE** | 9.56 Million PKR | 9.52 Million PKR | **Better!** Error reduced by PKR 40,000 |
+| **Parameters** | Faster learning, deeper trees | `n_estimators=350, lr=0.016, max_depth=6` | Slower learning & generalized trees (Prevents overfitting) |
+
+> **Conclusion:** With the new parameters, the model's Average Error (MAE) is better (lower). This newly tuned model is now officially set for production and the dashboard.
 
 | Phase | Status |
 |---|---|

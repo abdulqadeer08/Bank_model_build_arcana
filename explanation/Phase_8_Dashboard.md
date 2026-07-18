@@ -2,12 +2,12 @@
 
 ---
 
-## 🎯 Phase 8 ka Maqsad
+## 🎯 Phase 8 Objective
 
-**Streamlit** se ek interactive web dashboard banaya jahan bank managers bina coding ke:
-- Future forecast dekh sakein
-- Branch-wise analysis kar sakein
-- Historical data explore kar sakein
+Created an interactive web dashboard using **Streamlit** where bank managers can, without coding:
+- View future forecasts
+- Perform branch-wise analysis
+- Explore historical data
 
 ---
 
@@ -19,7 +19,7 @@
 - Summary priority table (CRITICAL / HIGH / NORMAL)
 
 ### 2. 🔮 Branch Forecast
-- Branch select karo → forecast chart instantly update
+- Select a branch → forecast chart updates instantly
 - GREEN/YELLOW/RED confidence ribbons
 - Detailed table (date, predicted, lower, upper, uncertainty)
 - **CSV download button** per branch
@@ -31,20 +31,20 @@
 - Business recommendations table
 
 ### 4. 🗂️ Data Explorer
-- Branch + metric select karo
+- Select branch + metric
 - Time series plot + rolling 7/30 day averages
 - Raw data table (expandable)
 
 ---
 
-## ▶️ Dashboard Chalane Ka Tarika
+## ▶️ How to Run the Dashboard
 
 ```bash
 cd d:\bank
 streamlit run dashboard.py
 ```
 
-Browser automatically open hoga: `http://localhost:8501`
+The browser will open automatically: `http://localhost:8501`
 
 ---
 

@@ -2,17 +2,17 @@
 
 ---
 
-## 🎯 Phase 7 ka Maqsad (Objective)
+## 🎯 Phase 7 Objective
 
-Phase 7 mein humne **Recursive Multi-Step Forecasting** implement ki — yani past data (Feb 2024 – Apr 2026) ke basis par **agle 30 din** ka branch-wise daily cash withdrawal predict kiya.
+In Phase 7, we implemented **Recursive Multi-Step Forecasting** — predicting the branch-wise daily cash withdrawal for the **next 30 days** based on past data (Feb 2024 – Apr 2026).
 
-> **Simple Matlab:** Model ko pehle se pata nahi hota ke kal kya hoga. Isliye hum **kal ki prediction ko parso ka lag feature** ban dete hain — phir parso predict karte hain — aur yeh chain 30 din tak chalti hai!
+> **Simple Meaning:** The model does not know in advance what will happen tomorrow. Therefore, we **make tomorrow's prediction the lag feature for the day after** — then predict the day after — and this chain continues for 30 days!
 
 ---
 
-## 🔢 Kya Kiya — Step by Step
+## 🔢 Actions Taken — Step by Step
 
-### Step 1: Last Known State Identify Kiya
+### Step 1: Identified Last Known State
 
 | Item | Value |
 |---|---|
@@ -28,7 +28,7 @@ Phase 7 mein humne **Recursive Multi-Step Forecasting** implement ki — yani pa
 
 ```python
 for day in next_30_days:
-    lag_1  = yesterday's value   # actual ya previously predicted
+    lag_1  = yesterday's value   # actual or previously predicted
     lag_7  = 7 days ago value
     lag_14 = 14 days ago value
     lag_30 = 30 days ago value
@@ -37,24 +37,24 @@ for day in next_30_days:
     
     prediction = model.predict(features)
     
-    # KEY STEP: predicted value → history mein add → next day ka lag banega
+    # KEY STEP: predicted value → added to history → becomes lag for next day
     history[target_date] = prediction
 ```
 
-**Unknown Future Features ka Handle:**
+**Handling Unknown Future Features:**
 
 | Feature | Solution |
 |---|---|
-| `Daily_Txn_Count` | Branch-wise historical average use kiya |
+| `Daily_Txn_Count` | Used branch-wise historical average |
 | `Branch_Total_Debit` | Branch-wise historical average |
 | `Peak_Hour_Txns` | Branch-wise historical average |
-| Calendar features | Exactly compute hote hain (weekday, month, etc.) |
+| Calendar features | Computed exactly (weekday, month, etc.) |
 
 ---
 
 ### Step 3: Uncertainty / Confidence Intervals
 
-Jitna aage predict karo, utna zyada uncertainty badhti hai:
+The further ahead you predict, the higher the uncertainty increases:
 
 | Horizon | Uncertainty | Confidence |
 |---|---|---|
@@ -62,7 +62,7 @@ Jitna aage predict karo, utna zyada uncertainty badhti hai:
 | Day 8–14 | ±10% to ±15% | 🟡 MEDIUM |
 | Day 15–30 | ±15% to ±25% | 🔴 LOW |
 
-> **Yeh industry standard hai:** Weather forecast bhi kal accurate hota hai, mahine baad less accurate.
+> **This is an industry standard:** A weather forecast is accurate for tomorrow, but less accurate for next month.
 
 ---
 
@@ -109,27 +109,27 @@ Jitna aage predict karo, utna zyada uncertainty badhti hai:
 **Plot 22 — All Branches Forecast Grid**
 `eda_plots/22_all_branches_forecast.png`
 
-- 15 branches ek saath — 5×3 grid
-- Green line = past 60 din actual
-- Blue dashed = 30-din forecast
+- All 15 branches together — 5×3 grid
+- Green line = past 60 days actual
+- Blue dashed = 30-day forecast
 - Shaded area = confidence band
 - Orange dotted line = forecast start
 
 **Plot 23 — Top 6 Branches Confidence Ribbons**
 `eda_plots/23_confidence_ribbons.png`
 
-- Top 6 high-volume branches ka detailed view
+- Detailed view of the top 6 high-volume branches
 - 🟢 GREEN ribbon = Week 1 (HIGH confidence)
 - 🟡 YELLOW ribbon = Week 2 (MEDIUM confidence)
 - 🔴 RED ribbon = Week 3–4 (LOW confidence)
-- Weekly markers dikhate hain kab confidence drop hoti hai
+- Weekly markers show when confidence drops
 
 **Plot 24 — Branch × Date Heatmap**
 `eda_plots/24_forecast_heatmap.png`
 
 - Rows = Branches, Columns = Dates (every 3rd day shown)
-- Darker color = zyada cash chahiye
-- Ek nazar mein pata chalta hai kahan aur kab zyada liquidity chahiye
+- Darker color = more cash required
+- Shows at a glance where and when more liquidity is needed
 
 ---
 
@@ -139,11 +139,11 @@ Jitna aage predict karo, utna zyada uncertainty badhti hai:
 
 | Sheet | Contents |
 |---|---|
-| `All_Branches` | 450 rows — sab branches sab dates |
+| `All_Branches` | 450 rows — all branches all dates |
 | `Weekly_Summary` | Branch × Week pivot table |
-| `Br_104` | Branch 104 ka detailed 30-day forecast |
+| `Br_104` | Detailed 30-day forecast for Branch 104 |
 | `Br_202` | Branch 202 ka detailed forecast |
-| … | (har branch ki alag sheet) |
+| … | (separate sheet for each branch) |
 
 ---
 
@@ -155,7 +155,7 @@ Jitna aage predict karo, utna zyada uncertainty badhti hai:
 | Week 1 predictions → HIGH confidence | Use directly for immediate replenishment |
 | Week 3–4 → LOW confidence | Buffer 25% extra, review weekly |
 | Branch 287 lowest demand (20M/day) | Reduce excess cash — optimize capital allocation |
-| Total 18B PKR needed (30 days) | Treasury planning ke liye quarterly forecast input |
+| Total 18B PKR needed (30 days) | Quarterly forecast input for treasury planning |
 
 ---
 
@@ -180,5 +180,14 @@ Jitna aage predict karo, utna zyada uncertainty badhti hai:
 | Option | Description |
 |---|---|
 | **Phase 8 — Dashboard** | Streamlit dashboard — interactive forecasting UI |
-| **Model v2** | Holiday/salary cycle features add karke accuracy improve karo |
-| **Auto-Retraining** | Naya data aane par model automatically retrain ho |
+| **Model v2** | Improve accuracy by adding holiday/salary cycle features |
+| **Auto-Retraining** | Automatically retrain model when new data arrives |
+
+---
+
+## ⚠️ Pipeline Reusability & Architecture Limitations
+
+This pipeline can generate forecasts on new data *without* retraining the model. However, there are two important constraints to note for production deployment:
+
+1. **Standalone Execution vs. Live Dashboard Integration:** Currently, this pipeline is a standalone reusable function (`forecast_pipeline.py`) that exports results to an Excel file. The dashboard statically reads from this generated file. Full live-integration (e.g., auto-triggering the forecast generation via a button when new data is uploaded) is considered a future enhancement.
+2. **Continuous Saving:** The pipeline currently appends new data dynamically during execution to compute lags, but does not permanently save this extended history. In a full production environment, this would be updated to persistently save incoming daily data to the database or historical CSV file.

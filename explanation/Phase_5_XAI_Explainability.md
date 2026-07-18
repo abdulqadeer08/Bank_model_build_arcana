@@ -2,30 +2,30 @@
 
 ---
 
-## 🎯 Phase 5 ka Maqsad (Objective)
+## 🎯 Phase 5 Objective
 
-Phase 5 mein humne **SHAP (SHapley Additive exPlanations)** use ki taakay model ki har prediction explain ho sake.
+In Phase 5, we used **SHAP (SHapley Additive exPlanations)** so that every model prediction could be explained.
 
-> **Simple Matlab:** Model sirf "5 Crore chahiye" nahi kehta —  
-> Ab batayega **"5 Crore chahiye KYUNKI: Monday hai + pichle hafte 4.8 Crore nikla tha + Branch 234 busy branch hai"**
+> **Simple Meaning:** The model doesn't just say "Requires 5 Crore" —  
+> Now it will explain **"Requires 5 Crore BECAUSE: It is Monday + 4.8 Crore was withdrawn last week + Branch 234 is a busy branch"**
 
 ---
 
-## 🔢 Kya Kiya — Step by Step
+## 🔢 Actions Taken — Step by Step
 
 ### Step 1: Libraries Import
-- `shap 0.52.0`, `joblib`, `matplotlib` import kiye
+- Imported `shap 0.52.0`, `joblib`, `matplotlib`
 
 ---
 
 ### Step 2: Model & Data Load
 - **Model:** `models/best_model.pkl` (XGBoost)
 - **Data:** `X_test` (1,731 rows × 22 features)
-- **Daily metadata:** branch info ke liye
+- **Daily metadata:** for branch info
 
 ---
 
-### Step 3: SHAP Explainer Create kiya
+### Step 3: Created SHAP Explainer
 
 ```python
 explainer   = shap.TreeExplainer(model)
@@ -34,11 +34,11 @@ shap_values = explainer.shap_values(X_sample)  # 500 samples
 
 | Item | Value |
 |---|---|
-| **Explainer type** | TreeExplainer (XGBoost ke liye optimized) |
+| **Explainer type** | TreeExplainer (optimized for XGBoost) |
 | **Base value (expected_value)** | PKR 46.34 Million |
 | **SHAP array shape** | (500, 22) — 500 rows × 22 features |
 
-> **Base value = 46.34M** matlab: koi bhi feature na ho toh model 46.34M predict karega. Phir har feature is base par plus/minus karta hai.
+> **Base value = 46.34M** means: without any features, the model predicts 46.34M. Then each feature adds/subtracts from this base.
 
 ---
 
@@ -55,16 +55,16 @@ shap_values = explainer.shap_values(X_sample)  # 500 samples
 | 4 | `Branch_Total_Debit` | 3.08M PKR |
 | 5 | `Day` | 2.49M PKR |
 
-> **Key Insight:** Pichle 30 din ka average (`rolling_30_mean_debit`) sab se zyada important feature hai — matlab **historical trend** cash prediction ka sabse bada driver hai!
+> **Key Insight:** The 30-day average (`rolling_30_mean_debit`) is the most important feature — meaning **historical trend** is the biggest driver of cash prediction!
 
 ---
 
 ### Step 5: SHAP Beeswarm Plot
 **Graph:** `eda_plots/14_shap_beeswarm.png`
 
-- **Red dots (right side):** High feature value → prediction increase karta hai (zyada cash chahiye)
-- **Blue dots (left side):** Low feature value → prediction decrease karta hai (kam cash chahiye)
-- **Yeh plot batata hai:** Na sirf importance, balki direction bhi (positive/negative impact)
+- **Red dots (right side):** High feature value → increases prediction (more cash required)
+- **Blue dots (left side):** Low feature value → decreases prediction (less cash required)
+- **This plot shows:** Not only importance, but also direction (positive/negative impact)
 
 ---
 
@@ -72,12 +72,12 @@ shap_values = explainer.shap_values(X_sample)  # 500 samples
 **Graph:** `eda_plots/15_shap_waterfall.png`
 
 **Explained Prediction:**
-- **Branch:** 234 (sabse high prediction wali)
+- **Branch:** 234 (one with the highest prediction)
 - **Predicted:** PKR 175.36 Million
 - **Actual:** PKR 150.95 Million
 - **Error:** ~24 Million (16% off)
 
-**Waterfall plot batata hai:**
+**Waterfall plot shows:**
 ```
 Base (average) : +46.34M PKR
 rolling_30_mean: +85.2M  (strong positive — high historical avg)
@@ -97,25 +97,25 @@ Final Prediction: 175.36M PKR
 - **Feature shown:** `rolling_30_mean_debit` (most important)
 - **X-axis:** Actual value of rolling_30_mean_debit
 - **Y-axis:** Its SHAP contribution to prediction
-- **Pattern:** Jitna zyada 30-day average, utna zyada prediction increase
+- **Pattern:** The higher the 30-day average, the more the prediction increases
 
 ---
 
 ### Step 8: Branch-Level SHAP Summary
 **Graph:** `eda_plots/17_shap_branch_summary.png`
 
-- Har branch ke liye top 5 features ka average SHAP impact
-- Kuch branches mein `rolling_30_mean` dominant hai
-- Kuch branches mein `Daily_Txn_Count` zyada role ada karta hai
-- Business recommendation: **Har branch ke liye alag behavior pattern hai**
+- Average SHAP impact of top 5 features for each branch
+- In some branches, `rolling_30_mean` is dominant
+- In some branches, `Daily_Txn_Count` plays a larger role
+- Business recommendation: **There are different behavior patterns for each branch**
 
 ---
 
-### Step 9: SHAP Values Save kiye
+### Step 9: Saved SHAP Values
 
 | File | Description |
 |---|---|
-| `models/shap_values.csv` | 500 test samples ke SHAP values |
+| `models/shap_values.csv` | SHAP values for 500 test samples |
 | `models/shap_expected_value.json` | Base value (46.34M PKR) |
 
 ---
@@ -124,10 +124,10 @@ Final Prediction: 175.36M PKR
 
 | Insight | Business Action |
 |---|---|
-| `rolling_30_mean_debit` sab se important | 30-din ka historical trend dekho — long-term planning karo |
-| `rolling_7_mean_debit` 2nd most important | Weekly patterns monitor karo |
-| `Daily_Txn_Count` 3rd important | Jis din transactions zyada, cash zyada chahiye |
-| Branch-wise different patterns | Har branch ka alag replenishment schedule hona chahiye |
+| `rolling_30_mean_debit` is most important | Look at the 30-day historical trend — do long-term planning |
+| `rolling_7_mean_debit` is 2nd most important | Monitor weekly patterns |
+| `Daily_Txn_Count` is 3rd important | On days with more transactions, more cash is required |
+| Branch-wise different patterns | Each branch should have a distinct replenishment schedule |
 
 ---
 

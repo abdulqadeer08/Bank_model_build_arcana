@@ -2,18 +2,18 @@
 
 ---
 
-## 🎯 Phase 3 ka Maqsad (Objective)
+## 🎯 Phase 3 Objective
 
-Phase 3 mein humne raw feature-engineered data ko **model training ke liye ready** kiya.
-Yeh step EDA aur Feature Engineering ke baad ka zaroori bridge hai jahan se actual ML shuru hota hai.
+In Phase 3, we prepared the raw feature-engineered data for **model training**.
+This step is the essential bridge after EDA and Feature Engineering where actual ML begins.
 
 ---
 
-## 🔢 Kya Kiya — Step by Step
+## 🔢 Actions Taken — Step by Step
 
 ### Step 1: Libraries Import
-- `pandas`, `numpy`, `matplotlib`, `seaborn`, `sklearn`, `os`, `json` import kiye
-- `model_data/` aur `eda_plots/` folders create kiye
+- Imported `pandas`, `numpy`, `matplotlib`, `seaborn`, `sklearn`, `os`, `json`
+- Created `model_data/` and `eda_plots/` directories
 
 ---
 
@@ -27,66 +27,66 @@ Yeh step EDA aur Feature Engineering ke baad ka zaroori bridge hai jahan se actu
 
 ---
 
-### Step 3: Target Variable Define ki
+### Step 3: Target Variable Definition
 
 > **Target = `Daily_Total_Debit`**
 
 | | |
 |---|---|
-| **Kya predict karega?** | Ek branch par ek din mein kitna cash withdraw hoga (PKR) |
-| **Kyun Debit?** | Debit = Cash outflow = Yahi bank ko replenish karna hota hai |
-| **Business Meaning** | Agar kal Branch X se 5 Crore niklega, toh aaj hi cash arrange karo |
+| **What will it predict?** | How much cash will be withdrawn from a branch in a day (PKR) |
+| **Why Debit?** | Debit = Cash outflow = This is what the bank needs to replenish |
+| **Business Meaning** | If Branch X requires 5 Crore tomorrow, arrange the cash today |
 
 ---
 
 ### Step 4: Transaction Level → Daily Branch Level Aggregation
 
-**Problem:** Original data transaction-level tha (har row = ek transaction)  
-**Solution:** Har branch ka daily summary banaya (har row = ek branch + ek din)
+**Problem:** Original data was transaction-level (each row = one transaction)  
+**Solution:** Created a daily summary for each branch (each row = one branch + one day)
 
-| Pehle | Baad |
+| Before | After |
 |---|---|
 | 81,709 rows (transactions) | 9,032 rows (branch × day) |
-| Har row = 1 transaction | Har row = 1 branch ka 1 din ka summary |
+| Each row = 1 transaction | Each row = 1 day summary for 1 branch |
 
 **Aggregated features:**
-- `Daily_Total_Debit` — din bhar ka total cash withdrawal
-- `Daily_Total_Credit` — din bhar ka total cash deposit
-- `Daily_Txn_Count` — transactions ki taadaad
+- `Daily_Total_Debit` — total cash withdrawal for the day
+- `Daily_Total_Credit` — total cash deposit for the day
+- `Daily_Txn_Count` — number of transactions
 - Time features (Weekday, Month, Year, Day, etc.)
 - Branch-level features (Branch_Total_Debit, Branch_Txn_Count, etc.)
 - Peak/Business hour transaction counts
 
 ---
 
-### Step 5: Lag Features Add kiye (Time Series ka Core)
+### Step 5: Added Lag Features (Core of Time Series)
 
-Lag features = **model ko past dikhana** taakay woh future predict kar sake.
+Lag features = **showing the model the past** so it can predict the future.
 
-| Feature | Matlab |
+| Feature | Meaning |
 |---|---|
-| `lag_1_debit` | Kal kitna cash nikla |
-| `lag_7_debit` | Ek hafta pehle same din kitna nikla |
-| `lag_14_debit` | 2 hafte pehle same din |
-| `lag_30_debit` | 1 mahina pehle same din |
-| `rolling_7_mean_debit` | Pichle 7 din ka average |
-| `rolling_30_mean_debit` | Pichle 30 din ka average |
+| `lag_1_debit` | Cash withdrawn yesterday |
+| `lag_7_debit` | Cash withdrawn exactly one week ago |
+| `lag_14_debit` | Cash withdrawn exactly two weeks ago |
+| `lag_30_debit` | Cash withdrawn exactly one month ago |
+| `rolling_7_mean_debit` | Average of the past 7 days |
+| `rolling_30_mean_debit` | Average of the past 30 days |
 
-> ⚠️ **Important:** Lag features per BRANCH compute kiye — har branch ka apna history hai
+> ⚠️ **Important:** Lag features were computed per BRANCH — each branch has its own history
 
-**Rows dropped:** 450 (woh rows jahan 30-day history available nahi thi)  
+**Rows dropped:** 450 (rows where 30-day history was not available)  
 **Rows remaining:** 8,582
 
 ---
 
-### Step 6: Feature aur Target Alag kiye
+### Step 6: Separated Features and Target
 
-**Drop kiye gaye columns (leakage risk):**
-- `start_date` — numeric nahi, split ke liye use kiya
-- `Daily_Total_Debit` — yeh TARGET hai, feature nahi
+**Dropped columns (leakage risk):**
+- `start_date` — not numeric, used for splitting
+- `Daily_Total_Debit` — this is the TARGET, not a feature
 - `Daily_Total_Credit` — target se highly correlated, leakage
-- `Daily_Net_Cash_Flow` — target ki info contain karta hai
-- `Net_Outflow_Periods` — target se derived
+- `Daily_Net_Cash_Flow` — contains target information
+- `Net_Outflow_Periods` — derived from target
 
 **Final Features (X): 22 features**
 ```
@@ -102,7 +102,7 @@ rolling_7_mean_debit, rolling_30_mean_debit
 
 ### Step 7: Chronological Train/Test Split (80/20)
 
-> ⚠️ **Time Series mein shuffle NAHI karte — future data train mein nahi jaana chahiye**
+> ⚠️ **In Time Series, we DO NOT shuffle — future data should not leak into training**
 
 ```
 |← TRAIN (79.8%) →|← TEST (20.2%) →|
@@ -110,14 +110,14 @@ rolling_7_mean_debit, rolling_30_mean_debit
 |    6,851 rows       |    1,731 rows        |
 ```
 
-**Kyun chronological?**  
-Agar random shuffle karte toh Nov 2025 ka data train mein aur Sep 2025 ka data test mein jata — model "future dekh ke" train hota, jo real life mein cheating hai (Data Leakage).
+**Why chronological?**  
+If we had shuffled randomly, Nov 2025 data would go to train and Sep 2025 data to test — the model would train by "looking into the future", which is cheating in real life (Data Leakage).
 
 ---
 
 ### Step 8 & 9: Visualizations + Leakage Verification
 
-**Graphs banaye:**
+**Generated Graphs:**
 - `08_train_test_split.png` — Train/Test split timeline
 - `09_target_analysis.png` — Target variable distribution (by weekday, by branch)
 
@@ -130,7 +130,7 @@ Agar random shuffle karte toh Nov 2025 ka data train mein aur Sep 2025 ka data t
 
 ---
 
-### Step 11: Files Save kiye
+### Step 11: Saved Files
 
 | File | Description |
 |---|---|
@@ -138,7 +138,7 @@ Agar random shuffle karte toh Nov 2025 ka data train mein aur Sep 2025 ka data t
 | `model_data/X_test.csv` | Test features (1,731 × 22) |
 | `model_data/y_train.csv` | Training target values |
 | `model_data/y_test.csv` | Test target values |
-| `model_data/daily_full.csv` | Complete dataset (final model ke liye) |
+| `model_data/daily_full.csv` | Complete dataset (for final model) |
 | `model_data/feature_cols.json` | Feature names list |
 
 ---

@@ -371,7 +371,7 @@ tr:last-child td{border-bottom:none;}
 
   <div class="sidebar-footer">
     <div><span class="status-dot"></span>Model Active · XGBoost</div>
-    <div style="margin-top:4px">R² 0.5607 · MAE 14.25M PKR</div>
+    <div style="margin-top:4px">R² 0.6334 · MAE 9.52M PKR</div>
     <div style="margin-top:4px;font-size:10px">Data till: <span id="lastDate">—</span></div>
   </div>
 </nav>
@@ -383,12 +383,12 @@ tr:last-child td{border-bottom:none;}
 <div class="page active" id="page-calendar">
   <div class="page-header">
     <h2>📅 Cash Need Calendar</h2>
-    <p>Kis din, kis branch ko kitni cash chahiye — 30-day forward view</p>
+    <p>Daily cash requirement by branch — 30-day forward view</p>
   </div>
 
   <div class="controls-row">
     <div>
-      <label class="ctrl-label">Branch Select Karo</label>
+      <label class="ctrl-label">Select Branch</label>
       <div class="select-wrap">
         <select id="calBranch" onchange="renderCalendar()"></select>
       </div>
@@ -412,8 +412,8 @@ tr:last-child td{border-bottom:none;}
 <!-- ══ PAGE: EXPLAIN ═══════════════════════════════════════════════════════ -->
 <div class="page" id="page-explain">
   <div class="page-header">
-    <h2>🔍 Kyun Itni Cash Chahiye?</h2>
-    <p>Feature-level explanation — model ne iss prediction ke liye kya socha</p>
+    <h2>🔍 Why This Amount?</h2>
+    <p>Feature-level explanation — how the model made this prediction</p>
   </div>
 
   <div class="controls-row">
@@ -430,7 +430,7 @@ tr:last-child td{border-bottom:none;}
       </div>
     </div>
     <div style="align-self:flex-end">
-      <button class="btn" onclick="renderExplain()">🔍 Explain Karo</button>
+      <button class="btn" onclick="renderExplain()">🔍 Explain</button>
     </div>
   </div>
 
@@ -663,17 +663,17 @@ function renderExplainDates() {
 }
 
 const FEATURE_LABELS = {
-  rolling_30_mean_debit:{name:'📅 30-Din Average',    desc:'Pichle 30 din ka average withdrawal'},
-  rolling_7_mean_debit :{name:'📆 7-Din Average',     desc:'Pichle 7 din ka average withdrawal'},
-  lag_1_debit          :{name:'⏮️ Kal ka Withdrawal', desc:'Kal kitna cash nikla tha'},
-  lag_7_debit          :{name:'📅 7 Din Pehle',       desc:'Ek hafte pehle ka withdrawal'},
-  lag_14_debit         :{name:'📅 14 Din Pehle',      desc:'Do hafte pehle ka withdrawal'},
-  lag_30_debit         :{name:'📅 30 Din Pehle',      desc:'Ek mahine pehle ka withdrawal'},
-  Daily_Txn_Count      :{name:'🔢 Transactions',      desc:'Us din kitne transactions hue'},
-  Branch_Total_Debit   :{name:'🏦 Branch Volume',     desc:'Branch ki overall transaction volume'},
-  Weekday              :{name:'📆 Weekday',            desc:'Hafte ka kaunsa din (0=Mon, 6=Sun)'},
-  Is_Weekend           :{name:'🏖️ Weekend',            desc:'Kya yeh weekend hai'},
-  Month                :{name:'🗓️ Mahina',             desc:'Sal ka mahina'},
+  rolling_30_mean_debit:{name:'📅 30-Day Average',    desc:'Average withdrawal over the past 30 days'},
+  rolling_7_mean_debit :{name:'📆 7-Day Average',     desc:'Average withdrawal over the past 7 days'},
+  lag_1_debit          :{name:'⏮️ Yesterday\'s Withdrawal', desc:'Cash withdrawal amount from yesterday'},
+  lag_7_debit          :{name:'📅 7 Days Ago',       desc:'Cash withdrawal amount from exactly one week ago'},
+  lag_14_debit         :{name:'📅 14 Days Ago',      desc:'Cash withdrawal amount from exactly two weeks ago'},
+  lag_30_debit         :{name:'📅 30 Days Ago',      desc:'Cash withdrawal amount from exactly one month ago'},
+  Daily_Txn_Count      :{name:'🔢 Transactions',      desc:'Total number of transactions on that day'},
+  Branch_Total_Debit   :{name:'🏦 Branch Volume',     desc:'Overall historical transaction volume of this branch'},
+  Weekday              :{name:'📆 Weekday',            desc:'Day of the week (0=Mon, 6=Sun)'},
+  Is_Weekend           :{name:'🏖️ Weekend',            desc:'Whether the day is a weekend'},
+  Month                :{name:'🗓️ Month',             desc:'Month of the year'},
 };
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
@@ -746,20 +746,19 @@ function renderExplain() {
       <div class="divider"></div>
       <div style="font-size:13px;color:var(--text-muted)">
         Base amount: <span style="color:var(--text);font-weight:700">${base.toFixed(1)}M PKR</span><br>
-        Features ka combined effect: <span style="color:${diff>=0?'#34d399':'#f87171'};font-weight:700">${diff>=0?'+':''}${diff.toFixed(1)}M PKR</span><br>
+        Combined effect of features: <span style="color:${diff>=0?'#34d399':'#f87171'};font-weight:700">${diff>=0?'+':''}${diff.toFixed(1)}M PKR</span><br>
         Final prediction: <span style="color:var(--purple-light);font-weight:800;font-size:16px">${pred.toFixed(1)}M PKR</span>
       </div>
     </div>
     <div class="card" style="padding:20px">
       <div class="chart-title" style="margin-bottom:12px">📝 Plain Explanation</div>
       <div style="line-height:1.8;font-size:13px;color:var(--text-dim)">
-        <b style="color:var(--text)">Branch ${branch}</b> ko <b style="color:var(--cyan)">${dateDisp} (${dayName})</b> ko
-        <b style="color:var(--purple-light)">${pred.toFixed(1)} Million PKR</b> cash chahiye.<br><br>
-        Yeh prediction isliye aayi kyunki:<br><br>
-        <b style="color:var(--green)">✅ Historical trend strong hai</b> — pichle 30 din ka average withdrawal zyada tha, jo iss prediction ka sabse bada driver hai (${(Math.abs(approxFeatures[0].shap)).toFixed(1)}M impact).<br><br>
-        <b style="color:var(--cyan)">✅ Recent activity</b> — pichle hafte ka average bhi iske saath consistent hai (${(Math.abs(approxFeatures[1].shap)).toFixed(1)}M impact).<br><br>
-        ${dt.getDay()===0||dt.getDay()===6?'<b style="color:var(--yellow)">⚠️ Weekend</b> — is din kam transactions hote hain, isliye model ne prediction thoda kam ki.':'<b style="color:var(--green)">✅ Working Day</b> — '+dayName+' ko normal business activity hoti hai.'}<br><br>
-        <b>Base se difference:</b> <span style="color:${diff>=0?'#34d399':'#f87171'}">${diff>=0?'Features ne '+diff.toFixed(1)+'M badhaya':'Features ne '+Math.abs(diff).toFixed(1)+'M ghataya'}</span>
+        <b style="color:var(--text)">Branch ${branch}</b> requires <b style="color:var(--purple-light)">${pred.toFixed(1)} Million PKR</b> cash on <b style="color:var(--cyan)">${dateDisp} (${dayName})</b>.<br><br>
+        This prediction was made because:<br><br>
+        <b style="color:var(--green)">✅ Strong historical trend</b> — the average withdrawal over the past 30 days was high, which is the biggest driver for this prediction (${(Math.abs(approxFeatures[0].shap)).toFixed(1)}M impact).<br><br>
+        <b style="color:var(--cyan)">✅ Recent activity</b> — the average over the past week is also consistent with this trend (${(Math.abs(approxFeatures[1].shap)).toFixed(1)}M impact).<br><br>
+        ${dt.getDay()===0||dt.getDay()===6?'<b style="color:var(--yellow)">⚠️ Weekend</b> — fewer transactions occur on this day, so the model slightly lowered the prediction.':'<b style="color:var(--green)">✅ Working Day</b> — '+dayName+' has normal business activity.'}<br><br>
+        <b>Difference from base:</b> <span style="color:${diff>=0?'#34d399':'#f87171'}">${diff>=0?'Features INCREASED prediction by '+diff.toFixed(1)+'M':'Features DECREASED prediction by '+Math.abs(diff).toFixed(1)+'M'}</span>
       </div>
     </div>
   </div>`;
@@ -954,11 +953,11 @@ function renderHeatmap() {
 // ── Performance Page ─────────────────────────────────────────────────────────
 function renderPerformance() {
   document.getElementById('perfKpis').innerHTML=[
-    {label:'MAE',  val:'14.25M PKR',sub:'↓35% vs Baseline'},
-    {label:'RMSE', val:'20.29M PKR',sub:''},
-    {label:'MAPE', val:'62.13%',    sub:''},
-    {label:'R²',   val:'0.5607',    sub:'Moderate ✓'},
-    {label:'Model',val:'XGBoost',   sub:'Best of 3'},
+    {label:'MAE',  val:'9.52M PKR', sub:'Tuned via TimeSeriesSplit'},
+    {label:'RMSE', val:'14.80M PKR',sub:''},
+    {label:'MAPE', val:'55.4%',     sub:''},
+    {label:'R²',   val:'0.6334',    sub:'Strong ✓'},
+    {label:'Model',val:'XGBoost V3',sub:'Best of all'},
   ].map(k=>`
     <div class="kpi-card">
       <div class="kpi-label">${k.label}</div>

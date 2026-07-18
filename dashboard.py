@@ -1,7 +1,7 @@
 """
 Phase 8 — Bank Cash Optimization Dashboard (Enhanced)
 Includes: Cash Need Calendar, SHAP-based Explanation, Branch Forecast
-Sir's Requirement: Kis din, kis branch, kitni cash + kyun itni chahiye
+Sir's Requirement: Daily cash requirement by branch + SHAP reasoning
 """
 
 import streamlit as st
@@ -67,7 +67,7 @@ plt.rcParams.update({
 # ─── Load Resources ───────────────────────────────────────────────────────────
 @st.cache_resource
 def load_model():
-    return joblib.load('models/best_model.pkl')
+    return joblib.load('models/v3/model_Half_Day_Total_Debit.pkl')
 
 @st.cache_data
 def load_data():
@@ -89,8 +89,20 @@ def load_shap():
 
 @st.cache_data
 def load_features():
-    with open('model_data/feature_cols.json') as f:
-        return json.load(f)
+    # Using V3 feature columns
+    return [
+        'AM_PM_Encoded', 'Txn_Count', 'Weekday', 'Is_Weekend', 'Month', 'Day',
+        'Is_Salary_Day', 'Is_Holiday',
+        'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit',
+        'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit',
+        'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash'
+    ]
+
+@st.cache_data
+def load_forecast_features():
+    ff = pd.read_csv('models/forecast_features.csv')
+    ff['start_date'] = pd.to_datetime(ff['start_date'])
+    return ff
 
 @st.cache_data
 def load_branch_metrics():
@@ -105,6 +117,7 @@ df             = load_data()
 forecast_df    = load_forecast()
 shap_values, base_value = load_shap()
 feature_cols   = load_features()
+forecast_feats = load_forecast_features()
 branch_metrics = load_branch_metrics()
 eval_report    = load_eval_report()
 
@@ -118,35 +131,60 @@ CONF_COLORS   = {'HIGH':'#2ecc71','MEDIUM':'#f39c12','LOW':'#e74c3c'}
 
 # ─── Feature human-readable names ────────────────────────────────────────────
 FEATURE_LABELS = {
-    'rolling_30_mean_debit' : ('📅 30-Din Average',    'Pichle 30 din ka average withdrawal'),
-    'rolling_7_mean_debit'  : ('📆 7-Din Average',     'Pichle 7 din ka average withdrawal'),
-    'lag_1_debit'           : ('⏮️ Kal ka Withdrawal', 'Kal kitna cash nikla tha'),
-    'lag_7_debit'           : ('📅 7 Din Pehle',       'Ek hafte pehle isi din kitna withdrawal tha'),
-    'lag_14_debit'          : ('📅 14 Din Pehle',      'Do hafte pehle isi din ka withdrawal'),
-    'lag_30_debit'          : ('📅 30 Din Pehle',      'Ek mahine pehle ka withdrawal'),
-    'Daily_Txn_Count'       : ('🔢 Transactions',      'Us din kitne transactions hue'),
-    'Branch_Total_Debit'    : ('🏦 Branch Volume',     'Is branch ki overall transaction volume'),
-    'Branch_Txn_Count'      : ('🔢 Branch Txn Total',  'Branch ki total transaction count'),
-    'Branch_Avg_Net_CF'     : ('💵 Net Cash Flow',     'Branch ka average net cash flow'),
-    'Peak_Hour_Txns'        : ('⏰ Peak Hour',         'Peak hour mein transactions ki count'),
-    'Business_Hour_Txns'    : ('🕐 Business Hours',    'Business hours transactions'),
-    'Weekday'               : ('📆 Din (Weekday)',     'Hafte ka kaunsa din hai'),
-    'Is_Weekend'            : ('🏖️ Weekend',           'Kya yeh weekend hai'),
-    'Month'                 : ('🗓️ Mahina',            'Sal ka kaunsa mahina'),
-    'Year'                  : ('📅 Saal',              'Kaunsa saal'),
-    'Day'                   : ('🔢 Tarikh',            'Mahine ki tarikh'),
-    'Weekday_Sin'           : ('📐 Weekday Sin',       'Weekday ka cyclical encoding'),
-    'Weekday_Cos'           : ('📐 Weekday Cos',       'Weekday ka cyclical encoding'),
-    'Month_Sin'             : ('📐 Month Sin',         'Month ka cyclical encoding'),
-    'Month_Cos'             : ('📐 Month Cos',         'Month ka cyclical encoding'),
-    'tran_br_code'          : ('🏦 Branch Code',       'Branch ki ID'),
+    'rolling_14_mean_Half_Day_Total_Debit' : ('📅 14-Day Average',    'Average withdrawal over the past 14 days'),
+    'lag_1_Half_Day_Total_Debit'           : ('⏮️ Last Half-Day Withdrawal', 'Cash withdrawal amount from the previous half-day'),
+    'lag_2_Half_Day_Total_Debit'           : ('⏮️ Yesterday Withdrawal', 'Cash withdrawal amount from yesterday same time'),
+    'lag_14_Half_Day_Total_Debit'          : ('📅 14 Days Ago',        'Cash withdrawal amount from exactly two weeks ago'),
+    'lag_60_Half_Day_Total_Debit'          : ('📅 60 Days Ago',        'Cash withdrawal amount from exactly two months ago'),
+    'rolling_14_mean_Half_Day_Total_Credit': ('📅 14-Day Avg Deposit', 'Average deposit over the past 14 days'),
+    'lag_1_Half_Day_Total_Credit'          : ('⏮️ Last Half-Day Deposit', 'Deposit amount from the previous half-day'),
+    'lag_2_Half_Day_Total_Credit'          : ('⏮️ Yesterday Deposit', 'Deposit amount from yesterday same time'),
+    'lag_14_Half_Day_Total_Credit'         : ('📅 14 Days Ago Deposit','Deposit amount from exactly two weeks ago'),
+    'lag_60_Half_Day_Total_Credit'         : ('📅 60 Days Ago Deposit','Deposit amount from exactly two months ago'),
+    'rolling_14_mean_Half_Day_Net_Cash'    : ('📅 14-Day Avg Net Cash','Average net cash over the past 14 days'),
+    'lag_1_Half_Day_Net_Cash'              : ('⏮️ Last Half-Day Net Cash','Net cash amount from the previous half-day'),
+    'lag_2_Half_Day_Net_Cash'              : ('⏮️ Yesterday Net Cash', 'Net cash amount from yesterday same time'),
+    'lag_14_Half_Day_Net_Cash'             : ('📅 14 Days Ago Net Cash','Net cash amount from exactly two weeks ago'),
+    'lag_60_Half_Day_Net_Cash'             : ('📅 60 Days Ago Net Cash','Net cash amount from exactly two months ago'),
+    'Txn_Count'             : ('🔢 Transactions',      'Total number of transactions'),
+    'Is_Salary_Day'         : ('💰 Salary Day',        'Whether the day is near salary day'),
+    'Is_Holiday'            : ('🎉 Holiday',           'Whether the day is a public holiday'),
+    'Weekday'               : ('📆 Day (Weekday)',     'Day of the week'),
+    'Is_Weekend'            : ('🏖️ Weekend',           'Whether the day is a weekend'),
+    'Month'                 : ('🗓️ Month',             'Month of the year'),
+    'Day'                   : ('🔢 Date',              'Date of the month'),
+    'AM_PM_Encoded'         : ('☀️/🌙 Time of Day',    'Morning (AM) or Afternoon (PM)'),
 }
 
-def get_shap_for_row(X_row):
-    """Compute SHAP values for a single row on-the-fly."""
+def get_shap_for_row(X_row_am, X_row_pm):
+    """Compute SHAP values for AM and PM, sum linear impacts, and return total Daily SHAP."""
     explainer = shap.TreeExplainer(model)
-    sv = explainer.shap_values(X_row)
-    return sv[0], float(explainer.expected_value)
+    
+    # AM
+    sv_am = explainer.shap_values(X_row_am)[0]
+    pred_log_am = model.predict(X_row_am)[0]
+    pred_am = np.expm1(pred_log_am)
+    base_log = explainer.expected_value
+    base_val = np.expm1(base_log)
+    
+    diff_am = pred_am - base_val
+    sum_abs_am = sum(abs(sv_am))
+    sv_linear_am = (sv_am / sum_abs_am) * diff_am if sum_abs_am != 0 else sv_am * 0
+    
+    # PM
+    sv_pm = explainer.shap_values(X_row_pm)[0]
+    pred_log_pm = model.predict(X_row_pm)[0]
+    pred_pm = np.expm1(pred_log_pm)
+    
+    diff_pm = pred_pm - base_val
+    sum_abs_pm = sum(abs(sv_pm))
+    sv_linear_pm = (sv_pm / sum_abs_pm) * diff_pm if sum_abs_pm != 0 else sv_pm * 0
+    
+    # Aggregate
+    total_shap = sv_linear_am + sv_linear_pm
+    total_base = base_val * 2
+    
+    return total_shap, total_base, pred_am + pred_pm
 
 def build_explanation(shap_vals, feature_vals, feat_names, base_val, prediction, branch, date):
     """Return markdown explanation of why this prediction was made."""
@@ -156,12 +194,12 @@ def build_explanation(shap_vals, feature_vals, feat_names, base_val, prediction,
     lines.append(f"### 🔍 Explanation: Branch **{branch}** on **{date}**\n")
     lines.append(f"**Base prediction** (average of all branches/days): **PKR {base_val/1e6:.1f}M**\n")
     lines.append(f"**Final prediction**: **PKR {prediction:.1f}M**\n")
-    lines.append("---\n#### Top Reasons (Kyun itni cash chahiye):\n")
+    lines.append("---\n#### Top Reasons:\n")
 
     for sv, fn in pairs:
         label, desc = FEATURE_LABELS.get(fn, (fn, fn))
-        direction   = "⬆️ BADHAYA" if sv > 0 else "⬇️ GHATAYA"
-        color_word  = "zyada" if sv > 0 else "kam"
+        direction   = "⬆️ INCREASED" if sv > 0 else "⬇️ DECREASED"
+        color_word  = "more" if sv > 0 else "less"
         sv_m        = sv / 1e6
         val         = feature_vals.get(fn, '?')
         if isinstance(val, float) and abs(val) > 1000:
@@ -172,62 +210,48 @@ def build_explanation(shap_vals, feature_vals, feat_names, base_val, prediction,
             val_str = str(val)
 
         lines.append(f"- {direction} **{label}** — {desc}\n"
-                     f"  - Value: `{val_str}` → Model ne **{color_word}** predict kiya  \n"
+                     f"  - Value: `{val_str}` → Model predicted **{color_word}**  \n"
                      f"  - Impact: `{sv_m:+.2f}M PKR`\n")
 
     lines.append("---\n")
     diff = prediction - base_val/1e6
     if diff > 0:
-        lines.append(f"✅ **Net Result:** Base ({base_val/1e6:.1f}M) + features ka combined effect = **{prediction:.1f}M PKR**\n"
-                     f"  _(Features ne {diff:.1f}M PKR BADHAYA)_\n")
+        lines.append(f"✅ **Net Result:** Base ({base_val/1e6:.1f}M) + combined effect of features = **{prediction:.1f}M PKR**\n"
+                     f"  _(Features INCREASED prediction by {diff:.1f}M PKR)_\n")
     else:
-        lines.append(f"✅ **Net Result:** Base ({base_val/1e6:.1f}M) + features ka combined effect = **{prediction:.1f}M PKR**\n"
-                     f"  _(Features ne {abs(diff):.1f}M PKR GHATAYA)_\n")
+        lines.append(f"✅ **Net Result:** Base ({base_val/1e6:.1f}M) + combined effect of features = **{prediction:.1f}M PKR**\n"
+                     f"  _(Features DECREASED prediction by {abs(diff):.1f}M PKR)_\n")
     return "\n".join(lines)
 
+def get_top_shap_reasons_str(X_row, shap_values_row):
+    """Get a short plain text explanation of top 2 SHAP features for the calendar view."""
+    pairs = sorted(zip(shap_values_row, feature_cols, X_row.values[0]), key=lambda x: abs(x[0]), reverse=True)
+    reasons = []
+    for sv, fn, fv in pairs[:2]:
+        if abs(sv) < 0.1: continue
+        label = FEATURE_LABELS.get(fn, (fn, fn))[0]
+        label = label.split(' ', 1)[1] if ' ' in label else label  # Remove emoji if present, or keep it short
+        
+        # Override for clearer plain language
+        if fn == 'Day' and (fv <= 5 or fv >= 27):
+            label = "Salary Day"
+        elif fn == 'Is_Weekend' and fv == 1:
+            label = "Weekend"
+            
+        sign = "⬆️" if sv > 0 else "⬇️"
+        reasons.append(f"{sign} {label} ({abs(sv)/1e6:.1f}M)")
+    return " | ".join(reasons) if reasons else "Normal Pattern"
+
 def get_forecast_features(branch, target_date):
-    """Build feature row for a future date."""
-    br_hist = df[df['tran_br_code']==branch].sort_values('start_date')
-    dh = br_hist.set_index('start_date')['Daily_Total_Debit']
-    br_avgs = BRANCH_AVGS.loc[branch]
-
-    def get_lag(lag_days):
-        ld = target_date - pd.Timedelta(days=lag_days)
-        avail = dh[dh.index <= ld]
-        return float(avail.iloc[-1]) if len(avail) > 0 else float(dh.iloc[-1])
-
-    recent_7  = [float(dh[dh.index == target_date - pd.Timedelta(days=d)].iloc[0])
-                 for d in range(1,8) if len(dh[dh.index == target_date - pd.Timedelta(days=d)]) > 0]
-    recent_30 = [float(dh[dh.index == target_date - pd.Timedelta(days=d)].iloc[0])
-                 for d in range(1,31) if len(dh[dh.index == target_date - pd.Timedelta(days=d)]) > 0]
-
-    wd = target_date.weekday()
-    mo = target_date.month
-    row = {
-        'tran_br_code'         : branch,
-        'Daily_Txn_Count'      : br_avgs['Daily_Txn_Count'],
-        'Weekday'              : wd,
-        'Is_Weekend'           : int(wd >= 5),
-        'Month'                : mo,
-        'Year'                 : target_date.year,
-        'Day'                  : target_date.day,
-        'Weekday_Sin'          : np.sin(2*np.pi*wd/7),
-        'Weekday_Cos'          : np.cos(2*np.pi*wd/7),
-        'Month_Sin'            : np.sin(2*np.pi*mo/12),
-        'Month_Cos'            : np.cos(2*np.pi*mo/12),
-        'Branch_Total_Debit'   : br_avgs['Branch_Total_Debit'],
-        'Branch_Txn_Count'     : br_avgs['Branch_Txn_Count'],
-        'Branch_Avg_Net_CF'    : br_avgs['Branch_Avg_Net_CF'],
-        'Peak_Hour_Txns'       : br_avgs['Peak_Hour_Txns'],
-        'Business_Hour_Txns'   : br_avgs['Business_Hour_Txns'],
-        'lag_1_debit'          : get_lag(1),
-        'lag_7_debit'          : get_lag(7),
-        'lag_14_debit'         : get_lag(14),
-        'lag_30_debit'         : get_lag(30),
-        'rolling_7_mean_debit' : np.mean(recent_7)  if recent_7  else get_lag(7),
-        'rolling_30_mean_debit': np.mean(recent_30) if recent_30 else get_lag(30),
-    }
-    return row
+    """Fetch AM and PM feature rows for a future date from the pre-generated forecast features."""
+    target_date = pd.to_datetime(target_date)
+    rows = forecast_feats[(forecast_feats['tran_br_code'] == branch) & (forecast_feats['start_date'] == target_date)]
+    if len(rows) == 0:
+        return None, None
+    
+    am_row = rows[rows['AM_PM'] == 'AM'].iloc[0].to_dict()
+    pm_row = rows[rows['AM_PM'] == 'PM'].iloc[0].to_dict()
+    return am_row, pm_row
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -238,13 +262,13 @@ with st.sidebar:
         "📅 Cash Need Calendar",
         "🔍 Why This Amount? (SHAP)",
         "🔮 Branch Forecast",
-        "📈 Prophet Time Series",
+        "⚖️ Model Comparison (Benchmark)",
         "🕹️ What-If Simulator",
         "📊 Overview",
         "📈 Model Performance",
     ], label_visibility="collapsed")
     st.markdown("---")
-    st.markdown("**Model:** XGBoost  \n**R²:** 0.5607  \n**MAE:** 14.25M PKR")
+    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.6334  \n**MAE:** 9.52M PKR")
     st.markdown(f"**Data till:** {LAST_DATE.date()}")
 
 
@@ -253,19 +277,65 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 if page == "📅 Cash Need Calendar":
     st.title("📅 Cash Need Calendar")
-    st.markdown("*Kis din, kis branch ko kitni cash chahiye — 30-day view*")
+    st.markdown("*Daily cash requirement by branch — 30-day view*")
     st.markdown("---")
 
     view = st.radio("View Type", ["🏦 Per Branch (Daily)", "📊 All Branches Heatmap"], horizontal=True)
 
     if view == "🏦 Per Branch (Daily)":
-        sel_br = st.selectbox("Branch Select Karo", BRANCHES)
+        sel_br = st.selectbox("Select Branch", BRANCHES)
         br_fc  = forecast_df[forecast_df['Branch']==sel_br].sort_values('Date').copy()
+        
+        with st.spinner("Analyzing SHAP reasons for the calendar..."):
+            top_drivers = []
+            for dt in br_fc['Date']:
+                am_row, pm_row = get_forecast_features(sel_br, dt)
+                if am_row is None:
+                    top_drivers.append("Normal Pattern")
+                    continue
+                X_am = pd.DataFrame([am_row])[feature_cols]
+                X_pm = pd.DataFrame([pm_row])[feature_cols]
+                
+                sv_total, _, _ = get_shap_for_row(X_am, X_pm)
+                
+                # Use AM row features as proxy for feature values display
+                top_drivers.append(get_top_shap_reasons_str(X_am, sv_total))
+                
+            br_fc['Top_Drivers'] = top_drivers
+
         br_fc['DayName'] = br_fc['Date'].dt.strftime('%a')
         br_fc['DateStr'] = br_fc['Date'].dt.strftime('%d %b')
         br_fc['Week']    = ((br_fc['Step']-1) // 7) + 1
 
-        st.subheader(f"🏦 Branch {sel_br} — 30-Din Cash Calendar")
+        st.subheader(f"🏦 Branch {sel_br} — 30-Day Cash Calendar")
+
+        # --- KPI Cards ---
+        br_metrics = branch_metrics[branch_metrics['Branch']==sel_br]
+        accuracy = 100 - br_metrics['MAPE_%'].values[0] if len(br_metrics)>0 else 0
+        avg_debit = df[df['tran_br_code']==sel_br]['Daily_Total_Debit'].mean()
+        net_cf = BRANCH_AVGS.loc[sel_br, 'Branch_Avg_Net_CF']
+        avg_credit = avg_debit + net_cf  # Approximate cash in
+        
+        st.markdown(f"""
+        <div style="display:flex; gap:12px; margin-bottom: 24px;">
+            <div style="flex:1; background:linear-gradient(135deg, #3a1c1c, #e74c3c); padding:16px; border-radius:12px; border:1px solid #ff7979; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                <div style="color:#ffd0d0; font-size:12px; font-weight:600; text-transform:uppercase;">Avg Daily Debit (Out)</div>
+                <div style="color:white; font-size:24px; font-weight:bold;">{avg_debit/1e6:.1f}M</div>
+            </div>
+            <div style="flex:1; background:linear-gradient(135deg, #1c3a24, #2ecc71); padding:16px; border-radius:12px; border:1px solid #58d68d; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                <div style="color:#d0ffd0; font-size:12px; font-weight:600; text-transform:uppercase;">Avg Daily Credit (In)</div>
+                <div style="color:white; font-size:24px; font-weight:bold;">{avg_credit/1e6:.1f}M</div>
+            </div>
+            <div style="flex:1; background:linear-gradient(135deg, #1c283a, #3498db); padding:16px; border-radius:12px; border:1px solid #5dade2; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                <div style="color:#d0eaff; font-size:12px; font-weight:600; text-transform:uppercase;">Net Cash Flow</div>
+                <div style="color:white; font-size:24px; font-weight:bold;">{net_cf/1e6:+.1f}M</div>
+            </div>
+            <div style="flex:1; background:linear-gradient(135deg, #2c3e50, #95a5a6); padding:16px; border-radius:12px; border:1px solid #bdc3c7; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                <div style="color:#e0e0e0; font-size:12px; font-weight:600; text-transform:uppercase;">Model Accuracy</div>
+                <div style="color:white; font-size:24px; font-weight:bold;">{accuracy:.1f}%</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Week-wise grouped cards
         for wk in [1,2,3,4]:
@@ -278,11 +348,12 @@ if page == "📅 Cash Need Calendar":
                     bg = "#1a3a1a" if row['Confidence']=='HIGH' else ("#3a2a00" if row['Confidence']=='MEDIUM' else "#3a1a1a")
                     border = "#2ecc71" if row['Confidence']=='HIGH' else ("#f39c12" if row['Confidence']=='MEDIUM' else "#e74c3c")
                     st.markdown(f"""
-                    <div style='background:{bg};border:1px solid {border};border-radius:10px;padding:10px;text-align:center;margin:4px 0'>
+                    <div style='background:{bg};border:1px solid {border};border-radius:10px;padding:10px;text-align:center;margin:4px 0;height:120px;display:flex;flex-direction:column;justify-content:center;'>
                         <div style='color:#888;font-size:11px'>{row['DayName']}</div>
                         <div style='color:#e0e0ff;font-weight:700;font-size:13px'>{row['DateStr']}</div>
                         <div style='color:#a78bfa;font-size:18px;font-weight:700'>{row['Predicted_M']:.0f}M</div>
-                        <div style='color:#666;font-size:9px'>±{row['Uncertainty_Pct']:.0f}%</div>
+                        <div style='color:#bbb;font-size:9px;margin-top:4px;min-height:22px;line-height:1.2;'><i>{row['Top_Drivers']}</i></div>
+                        <div style='color:#666;font-size:9px;margin-top:auto;'>±{row['Uncertainty_Pct']:.0f}%</div>
                     </div>
                     """, unsafe_allow_html=True)
             st.markdown("")
@@ -300,15 +371,33 @@ if page == "📅 Cash Need Calendar":
         ax.set_ylabel('Cash (Million PKR)', color='#c0c0d0')
         ax.set_title(f'Branch {sel_br} — Daily Cash Need (Next 30 Days)', color='#e0e0f0', fontweight='bold')
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v,_: f'{v:.0f}M'))
+        
+        # Add Annotations for Salary Days
+        for i, r in br_fc.reset_index(drop=True).iterrows():
+            if r['Date'].day in [1, 2, 3, 4, 5, 27, 28, 29, 30, 31]:
+                ax.axvline(x=i, color='#e74c3c', linestyle=':', linewidth=1.5, alpha=0.6)
+                if i == 0 or br_fc.iloc[i-1]['Date'].day not in [1, 2, 3, 4, 5, 27, 28, 29, 30, 31]:
+                    ax.text(i, ax.get_ylim()[1]*0.95, '💰 Salary Day', color='#e74c3c', fontsize=9, rotation=90, va='top', ha='right')
+
         patches = [mpatches.Patch(color=c, label=f'{l}') for l,c in CONF_COLORS.items()]
         ax.legend(handles=patches, facecolor='#1a1a2e', edgecolor='#444466', labelcolor='#c0c0d0')
         ax.grid(True, axis='y', alpha=0.4)
         st.pyplot(fig); plt.close()
 
-        # Table
-        disp = br_fc[['DateStr','DayName','Predicted_M','Lower_M','Upper_M','Uncertainty_Pct','Confidence']].copy()
-        disp.columns = ['Date','Day','Predicted (M PKR)','Lower (M)','Upper (M)','Uncertainty %','Confidence']
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        # Table with Highlighting and SHAP Explanations
+        disp = br_fc[['DateStr','DayName','Predicted_M','Top_Drivers','Lower_M','Upper_M','Uncertainty_Pct','Confidence']].copy()
+        disp.columns = ['Date','Day','Predicted (M PKR)','Why? (Top Drivers)','Lower (M)','Upper (M)','Uncertainty %','Confidence']
+        
+        def highlight_risk(row):
+            # Highlight Light Red for LOW confidence or High Demand (Top 20%)
+            high_demand_thresh = br_fc['Predicted_M'].quantile(0.8)
+            if row['Confidence'] == 'LOW':
+                return ['background-color: rgba(231, 76, 60, 0.25)'] * len(row)
+            elif row['Predicted (M PKR)'] > high_demand_thresh:
+                return ['background-color: rgba(243, 156, 18, 0.2)'] * len(row)
+            return [''] * len(row)
+
+        st.dataframe(disp.style.apply(highlight_risk, axis=1), use_container_width=True, hide_index=True)
 
         # Download
         csv = disp.to_csv(index=False).encode('utf-8')
@@ -340,31 +429,38 @@ if page == "📅 Cash Need Calendar":
         cbar.ax.tick_params(colors='#c0c0d0')
         st.pyplot(fig); plt.close()
 
-        st.info("💡 **Tip:** Darker color = us din us branch ko zyada cash chahiye. Yeh directly replenishment scheduling mein use ho sakta hai.")
+        st.info("💡 **Tip:** Darker color = More cash required by the branch on that day. This can be used directly for replenishment scheduling.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 2: WHY THIS AMOUNT? (SHAP EXPLANATION)
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "🔍 Why This Amount? (SHAP)":
-    st.title("🔍 Kyun Itni Cash Chahiye?")
-    st.markdown("*SHAP-based explanation — model ne iss prediction ke liye kya socha*")
+    st.title("🔍 Why This Amount?")
+    st.markdown("*SHAP-based explanation — how the model made this prediction*")
     st.markdown("---")
 
     col1, col2 = st.columns(2)
     with col1:
-        sel_br   = st.selectbox("Branch Select Karo", BRANCHES)
+        sel_br   = st.selectbox("Select Branch", BRANCHES)
     with col2:
         fc_dates = forecast_df[forecast_df['Branch']==sel_br]['Date'].dt.date.tolist()
-        sel_date = st.selectbox("Date Select Karo (Forecast Days)", fc_dates)
+        sel_date = st.selectbox("Select Date (Forecast Days)", fc_dates)
 
-    if st.button("🔍 Explain Karo — Kyun Itni Cash?", use_container_width=True):
-        with st.spinner("SHAP analysis chal rahi hai..."):
+    if st.button("🔍 Explain — Why This Amount?", use_container_width=True):
+        with st.spinner("Running SHAP analysis..."):
             target_dt  = pd.Timestamp(sel_date)
-            feat_row   = get_forecast_features(sel_br, target_dt)
-            X_row      = pd.DataFrame([feat_row])[feature_cols]
-            sv, bv     = get_shap_for_row(X_row)
-            pred_val   = float(model.predict(X_row)[0])
+            feat_row_am, feat_row_pm = get_forecast_features(sel_br, target_dt)
+            
+            if feat_row_am is None:
+                st.error("Feature data not found for this date. Run forecast pipeline to generate features.")
+                st.stop()
+                
+            X_row_am = pd.DataFrame([feat_row_am])[feature_cols]
+            X_row_pm = pd.DataFrame([feat_row_pm])[feature_cols]
+            
+            sv, bv, pred_val = get_shap_for_row(X_row_am, X_row_pm)
+            feat_row = feat_row_am  # for display values
 
             # Get forecast row for confidence info
             fc_row = forecast_df[(forecast_df['Branch']==sel_br) &
@@ -422,17 +518,17 @@ elif page == "🔍 Why This Amount? (SHAP)":
 
         # ── Plain Language Explanation ────────────────────────────────────────
         st.markdown("---")
-        st.subheader("📝 Plain Language Explanation (Urdu/English)")
+        st.subheader("📝 Plain Language Explanation")
 
         base_m = bv / 1e6
         pred_m = pred_val / 1e6
 
         st.markdown(f"""
         <div class='explain-box'>
-            <h4 style='color:#a78bfa'>🏦 Branch {sel_br} ko {sel_date} ({weekday_name}) ko <span style='color:#6ee7b7'>{pred_m:.1f}M PKR</span> chahiye</h4>
+            <h4 style='color:#a78bfa'>🏦 Branch {sel_br} requires <span style='color:#6ee7b7'>{pred_m:.1f}M PKR</span> on {sel_date} ({weekday_name})</h4>
             <p style='color:#9999cc;font-size:13px'>Base amount (average prediction): <b style='color:#e0e0f0'>{base_m:.1f}M PKR</b></p>
             <hr style='border-color:#2a2a4a'>
-            <p style='color:#c0c0d0;font-weight:600'>Top Reasons (Kyun itna?):</p>
+            <p style='color:#c0c0d0;font-weight:600'>Top Reasons:</p>
         """, unsafe_allow_html=True)
 
         for sv_val, fn, fv in pairs[:5]:
@@ -440,7 +536,7 @@ elif page == "🔍 Why This Amount? (SHAP)":
             sv_m = sv_val / 1e6
             direction = "⬆️ INCREASE" if sv_m > 0 else "⬇️ DECREASE"
             color = "#2ecc71" if sv_m > 0 else "#e74c3c"
-            impact_word = "zyada" if sv_m > 0 else "kam"
+            impact_word = "increased" if sv_m > 0 else "decreased"
             if isinstance(fv, float) and abs(fv) > 1000:
                 fv_str = f"{fv/1e6:.1f}M PKR"
             else:
@@ -457,11 +553,11 @@ elif page == "🔍 Why This Amount? (SHAP)":
             """, unsafe_allow_html=True)
 
         diff = pred_m - base_m
-        diff_word = f"+{diff:.1f}M badhaya" if diff > 0 else f"{diff:.1f}M ghataya"
+        diff_word = f"INCREASED by {diff:.1f}M" if diff > 0 else f"DECREASED by {abs(diff):.1f}M"
         st.markdown(f"""
             <hr style='border-color:#2a2a4a'>
             <p style='color:#c0c0d0'>
-                Base: <b style='color:#e0e0f0'>{base_m:.1f}M</b> + Features ne <b style='color:#6ee7b7'>{diff_word}</b>
+                Base: <b style='color:#e0e0f0'>{base_m:.1f}M</b> + Features <b style='color:#6ee7b7'>{diff_word}</b>
                 = <b style='color:#a78bfa;font-size:18px'>{pred_m:.1f}M PKR</b>
             </p>
         </div>
@@ -566,11 +662,11 @@ elif page == "📈 Model Performance":
     st.markdown("---")
 
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("MAE",  "14.25M PKR", "↓35% vs Baseline")
-    m2.metric("RMSE", "20.29M PKR", "")
-    m3.metric("MAPE", "62.13%", "")
-    m4.metric("R²",   "0.5607", "Moderate ✓")
-    m5.metric("Model","XGBoost","Best of 3")
+    m1.metric("MAE",  "9.52M PKR", "Tuned via TimeSeriesSplit")
+    m2.metric("RMSE", "14.80M PKR", "")
+    m3.metric("MAPE", "55.4%", "")
+    m4.metric("R²",   "0.6334", "Strong ✓")
+    m5.metric("Model","XGBoost V3","Best of all")
     st.markdown("---")
 
     tab1, tab2, tab3 = st.tabs(["🏦 Per-Branch", "📊 Plots", "💼 Recommendations"])
@@ -589,7 +685,7 @@ elif page == "📈 Model Performance":
             "Plot 23 — Confidence Ribbons":  "eda_plots/23_confidence_ribbons.png",
             "Plot 24 — Heatmap":             "eda_plots/24_forecast_heatmap.png",
         }
-        chosen = st.selectbox("Plot Select Karo", list(plots.keys()))
+        chosen = st.selectbox("Select Plot", list(plots.keys()))
         path = plots[chosen]
         if os.path.exists(path):
             st.image(path, use_container_width=True)
@@ -620,41 +716,40 @@ elif page == "🕹️ What-If Simulator":
         target_dt = pd.Timestamp(sel_date)
         
         # Get baseline features
-        base_feat = get_forecast_features(sel_br, target_dt)
+        base_feat_am, base_feat_pm = get_forecast_features(sel_br, target_dt)
+        if base_feat_am is None:
+            st.error("Feature data not found. Please select a valid date.")
+            st.stop()
         
-        is_holiday = st.checkbox("Is Public Holiday?", value=bool(base_feat.get('Is_Holiday', False)))
-        is_salary = st.checkbox("Is Salary Day?", value=bool(base_feat.get('Is_Salary_Day', False)))
+        is_holiday = st.checkbox("Is Public Holiday?", value=bool(base_feat_am.get('Is_Holiday', False)))
+        is_salary = st.checkbox("Is Salary Day?", value=bool(base_feat_am.get('Is_Salary_Day', False)))
         
         # Sliders for continuous variables
         st.markdown("**Historical Volume Adjustments**")
-        mult_30 = st.slider("30-Day Avg Volume Multiplier", 0.5, 2.0, 1.0, 0.1)
-        mult_7 = st.slider("7-Day Avg Volume Multiplier", 0.5, 2.0, 1.0, 0.1)
+        mult_14 = st.slider("14-Day Avg Volume Multiplier", 0.5, 2.0, 1.0, 0.1)
         
         if st.button("🚀 Run Simulation", use_container_width=True):
             with st.spinner("Simulating AI Model..."):
-                # Apply changes
-                sim_feat = base_feat.copy()
-                if 'Is_Holiday' in sim_feat: sim_feat['Is_Holiday'] = int(is_holiday)
-                if 'Is_Salary_Day' in sim_feat: sim_feat['Is_Salary_Day'] = int(is_salary)
-                if 'rolling_30_mean_debit' in sim_feat: sim_feat['rolling_30_mean_debit'] *= mult_30
-                if 'rolling_7_mean_debit' in sim_feat: sim_feat['rolling_7_mean_debit'] *= mult_7
+                # Apply changes to both AM and PM
+                sim_feat_am = base_feat_am.copy()
+                sim_feat_pm = base_feat_pm.copy()
                 
-                # Check for V3 Model (Optuna + Log Transform)
-                try:
-                    v3_model = joblib.load('models/v3/model_Half_Day_Total_Debit.pkl')
-                    # V3 feature structure is slightly different (half daily). We will simulate using the V2 model for now, 
-                    # but if V3 gets fully integrated into dashboard.py, we will use it here.
-                    sim_model = model
-                except:
-                    sim_model = model
+                for sf in [sim_feat_am, sim_feat_pm]:
+                    if 'Is_Holiday' in sf: sf['Is_Holiday'] = int(is_holiday)
+                    if 'Is_Salary_Day' in sf: sf['Is_Salary_Day'] = int(is_salary)
+                    if 'rolling_14_mean_Half_Day_Total_Debit' in sf: sf['rolling_14_mean_Half_Day_Total_Debit'] *= mult_14
+                
+                sim_model = model  # model is already V3
                 
                 # Baseline Prediction
-                X_base = pd.DataFrame([base_feat])[feature_cols]
-                base_pred = float(sim_model.predict(X_base)[0])
+                X_base_am = pd.DataFrame([base_feat_am])[feature_cols]
+                X_base_pm = pd.DataFrame([base_feat_pm])[feature_cols]
+                base_pred = np.expm1(sim_model.predict(X_base_am)[0]) + np.expm1(sim_model.predict(X_base_pm)[0])
                 
                 # Simulated Prediction
-                X_sim = pd.DataFrame([sim_feat])[feature_cols]
-                sim_pred = float(sim_model.predict(X_sim)[0])
+                X_sim_am = pd.DataFrame([sim_feat_am])[feature_cols]
+                X_sim_pm = pd.DataFrame([sim_feat_pm])[feature_cols]
+                sim_pred = np.expm1(sim_model.predict(X_sim_am)[0]) + np.expm1(sim_model.predict(X_sim_pm)[0])
                 
                 diff = sim_pred - base_pred
                 pct_change = (diff / base_pred) * 100 if base_pred > 0 else 0
@@ -681,11 +776,17 @@ elif page == "🕹️ What-If Simulator":
                     st.markdown("*Note: The model intelligently weights these features. For example, declaring a holiday on a weekend might have a different impact than on a weekday.*")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE 7: PROPHET TIME SERIES
+# PAGE 7: MODEL COMPARISON (BENCHMARK)
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📈 Prophet Time Series":
-    st.title("📈 Prophet Time-Series Forecast")
-    st.markdown("*Advanced Time-Series Modeling (Meta Prophet) natively handling Holidays & Seasonality.*")
+elif page == "⚖️ Model Comparison (Benchmark)":
+    st.title("⚖️ Model Comparison (Benchmark)")
+    st.markdown("*Comparing Prophet baseline with our production XGBoost Model.*")
+    
+    st.markdown("""
+    <div style='background-color:rgba(243,156,18,0.15); border-left:4px solid #f39c12; padding:12px; border-radius:4px; margin-bottom:20px;'>
+        <b style='color:#f39c12;'>⚠️ Important Note:</b> This page is strictly for comparison and validation. Production forecasts (Branch Forecast tab) are generated using the XGBoost V3 model, which yields higher accuracy (R² = 0.63). Prophet is included here as a cross-check benchmark.
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
 
     try:
@@ -696,28 +797,36 @@ elif page == "📈 Prophet Time Series":
         with col1:
             sel_br = st.selectbox("Select Branch", prophet_fc['Branch'].unique())
             
-        br_fc = prophet_fc[prophet_fc['Branch'] == sel_br].sort_values('ds')
+        br_fc_prophet = prophet_fc[prophet_fc['Branch'] == sel_br].sort_values('ds')
         
-        st.subheader(f"Future Cash Forecast (Branch {sel_br})")
+        # Overlay XGBoost forecast
+        xgb_fc = forecast_df[forecast_df['Branch'] == sel_br].sort_values('Date')
+        
+        st.subheader(f"Future Cash Forecast (Branch {sel_br}) - Prophet vs XGBoost")
         fig, ax = plt.subplots(figsize=(14, 5))
         
-        ax.plot(br_fc['ds'], br_fc['yhat']/1e6, color='#06b6d4', linewidth=2.5, label='Predicted Trend')
-        ax.fill_between(br_fc['ds'], br_fc['yhat_lower']/1e6, br_fc['yhat_upper']/1e6, color='#06b6d4', alpha=0.2, label='Confidence Interval')
+        # Prophet
+        ax.plot(br_fc_prophet['ds'], br_fc_prophet['yhat']/1e6, color='#06b6d4', linewidth=2.5, label='Prophet (Baseline)')
+        ax.fill_between(br_fc_prophet['ds'], br_fc_prophet['yhat_lower']/1e6, br_fc_prophet['yhat_upper']/1e6, color='#06b6d4', alpha=0.15)
         
-        ax.set_title(f'Prophet Forecast (Next 30 Days)', color='#e0e0f0', fontweight='bold')
+        # XGBoost
+        ax.plot(xgb_fc['Date'], xgb_fc['Predicted_M'], color='#a78bfa', linewidth=2.5, linestyle='--', label='XGBoost (Production)')
+        ax.fill_between(xgb_fc['Date'], xgb_fc['Lower_M'], xgb_fc['Upper_M'], color='#a78bfa', alpha=0.15)
+        
+        ax.set_title(f'Model Comparison: Prophet vs XGBoost (Next 30 Days)', color='#e0e0f0', fontweight='bold')
         ax.set_ylabel('Million PKR', color='#c0c0d0')
         ax.legend(facecolor='#1a1a2e', edgecolor='#444466', labelcolor='#c0c0d0')
         ax.grid(True, alpha=0.3)
         st.pyplot(fig); plt.close()
         
         st.markdown("---")
-        st.subheader("🔍 Time-Series Components Decomposition")
+        st.subheader("🔍 Time-Series Components Decomposition (Prophet)")
         st.markdown("*Prophet explicitly separates the overall trend from weekly patterns.*")
         
         c1, c2 = st.columns(2)
         with c1:
             fig, ax = plt.subplots(figsize=(8, 4))
-            ax.plot(br_fc['ds'], br_fc['trend']/1e6, color='#8b5cf6', linewidth=2)
+            ax.plot(br_fc_prophet['ds'], br_fc_prophet['trend']/1e6, color='#8b5cf6', linewidth=2)
             ax.set_title('Macro Trend (Is cash demand generally rising?)', color='#e0e0f0')
             ax.grid(True, alpha=0.3)
             st.pyplot(fig); plt.close()
@@ -725,7 +834,7 @@ elif page == "📈 Prophet Time Series":
         with c2:
             fig, ax = plt.subplots(figsize=(8, 4))
             # Extract one week of data to show the weekly pattern cleanly
-            weekly = br_fc.head(14).copy()
+            weekly = br_fc_prophet.head(14).copy()
             weekly['DayName'] = weekly['ds'].dt.day_name()
             # Plot against day name
             ax.bar(weekly['DayName'], weekly['weekly']/1e6, color='#10b981')

@@ -77,22 +77,28 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
             'random_state': 42
         }
         
-        # We use a validation split from the training set for tuning
-        val_idx = int(len(X_train) * 0.8)
-        X_t, y_t = X_train.iloc[:val_idx], y_train.iloc[:val_idx]
-        X_v, y_v = X_train.iloc[val_idx:], y_train.iloc[val_idx:]
+        # We use TimeSeriesSplit for robust tuning
+        from sklearn.model_selection import TimeSeriesSplit
+        tscv = TimeSeriesSplit(n_splits=3)
         
-        model = xgb.XGBRegressor(**params, early_stopping_rounds=20)
-        model.fit(X_t, y_t, eval_set=[(X_v, y_v)], verbose=False)
-        
-        preds = model.predict(X_v)
-        if use_log:
-            preds_orig = np.expm1(preds)
-            y_v_orig = np.expm1(y_v)
-            error = mean_absolute_error(y_v_orig, preds_orig)
-        else:
-            error = mean_absolute_error(y_v, preds)
-        return error
+        errors = []
+        for train_index, val_index in tscv.split(X_train):
+            X_t, X_v = X_train.iloc[train_index], X_train.iloc[val_index]
+            y_t, y_v = y_train.iloc[train_index], y_train.iloc[val_index]
+            
+            model = xgb.XGBRegressor(**params, early_stopping_rounds=20)
+            model.fit(X_t, y_t, eval_set=[(X_v, y_v)], verbose=False)
+            
+            preds = model.predict(X_v)
+            if use_log:
+                preds_orig = np.expm1(preds)
+                y_v_orig = np.expm1(y_v)
+                error = mean_absolute_error(y_v_orig, preds_orig)
+            else:
+                error = mean_absolute_error(y_v, preds)
+            errors.append(error)
+            
+        return np.mean(errors)
 
     print(f"Running Optuna Optimization for {target} (20 trials)...")
     study = optuna.create_study(direction='minimize')
