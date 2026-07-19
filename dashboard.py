@@ -263,28 +263,28 @@ CONF_COLORS   = {'HIGH':'#4ADE80','MEDIUM':'#FBBF24','LOW':'#F87171'}
 # ─── Feature human-readable names ────────────────────────────────────────────
 FEATURE_LABELS = {
     'rolling_14_mean_Half_Day_Total_Debit' : ('14-Day Average',    'Average withdrawal over the past 14 days'),
-    'lag_1_Half_Day_Total_Debit'           : ('⏮️ Last Half-Day Withdrawal', 'Cash withdrawal amount from the previous half-day'),
-    'lag_2_Half_Day_Total_Debit'           : ('⏮️ Yesterday Withdrawal', 'Cash withdrawal amount from yesterday same time'),
+    'lag_1_Half_Day_Total_Debit'           : ('Last Half-Day Withdrawal', 'Cash withdrawal amount from the previous half-day'),
+    'lag_2_Half_Day_Total_Debit'           : ('Yesterday Withdrawal', 'Cash withdrawal amount from yesterday same time'),
     'lag_14_Half_Day_Total_Debit'          : ('14 Days Ago',        'Cash withdrawal amount from exactly two weeks ago'),
     'lag_60_Half_Day_Total_Debit'          : ('60 Days Ago',        'Cash withdrawal amount from exactly two months ago'),
     'rolling_14_mean_Half_Day_Total_Credit': ('14-Day Avg Deposit', 'Average deposit over the past 14 days'),
-    'lag_1_Half_Day_Total_Credit'          : ('⏮️ Last Half-Day Deposit', 'Deposit amount from the previous half-day'),
-    'lag_2_Half_Day_Total_Credit'          : ('⏮️ Yesterday Deposit', 'Deposit amount from yesterday same time'),
+    'lag_1_Half_Day_Total_Credit'          : ('Last Half-Day Deposit', 'Deposit amount from the previous half-day'),
+    'lag_2_Half_Day_Total_Credit'          : ('Yesterday Deposit', 'Deposit amount from yesterday same time'),
     'lag_14_Half_Day_Total_Credit'         : ('14 Days Ago Deposit','Deposit amount from exactly two weeks ago'),
     'lag_60_Half_Day_Total_Credit'         : ('60 Days Ago Deposit','Deposit amount from exactly two months ago'),
     'rolling_14_mean_Half_Day_Net_Cash'    : ('14-Day Avg Net Cash','Average net cash over the past 14 days'),
-    'lag_1_Half_Day_Net_Cash'              : ('⏮️ Last Half-Day Net Cash','Net cash amount from the previous half-day'),
-    'lag_2_Half_Day_Net_Cash'              : ('⏮️ Yesterday Net Cash', 'Net cash amount from yesterday same time'),
+    'lag_1_Half_Day_Net_Cash'              : ('Last Half-Day Net Cash','Net cash amount from the previous half-day'),
+    'lag_2_Half_Day_Net_Cash'              : ('Yesterday Net Cash', 'Net cash amount from yesterday same time'),
     'lag_14_Half_Day_Net_Cash'             : ('14 Days Ago Net Cash','Net cash amount from exactly two weeks ago'),
     'lag_60_Half_Day_Net_Cash'             : ('60 Days Ago Net Cash','Net cash amount from exactly two months ago'),
-    'Txn_Count'             : ('🔢 Transactions',      'Total number of transactions'),
+    'Txn_Count'             : ('Transactions',      'Total number of transactions'),
     'Is_Salary_Day'         : ('Salary Day',        'Whether the day is near salary day'),
-    'Is_Holiday'            : ('🎉 Holiday',           'Whether the day is a public holiday'),
-    'Weekday'               : ('📆 Day (Weekday)',     'Day of the week'),
-    'Is_Weekend'            : ('🏖️ Weekend',           'Whether the day is a weekend'),
-    'Month'                 : ('🗓️ Month',             'Month of the year'),
-    'Day'                   : ('🔢 Date',              'Date of the month'),
-    'AM_PM_Encoded'         : ('☀️/🌙 Time of Day',    'Morning (AM) or Afternoon (PM)'),
+    'Is_Holiday'            : ('Holiday',           'Whether the day is a public holiday'),
+    'Weekday'               : ('Day (Weekday)',     'Day of the week'),
+    'Is_Weekend'            : ('Weekend',           'Whether the day is a weekend'),
+    'Month'                 : ('Month',             'Month of the year'),
+    'Day'                   : ('Date',              'Date of the month'),
+    'AM_PM_Encoded'         : ('Time of Day',    'Morning (AM) or Afternoon (PM)'),
 }
 
 def get_shap_for_row(X_row_am, X_row_pm):
@@ -369,7 +369,7 @@ def get_top_shap_reasons_str(X_row, shap_values_row):
         elif fn == 'Is_Weekend' and fv == 1:
             label = "Weekend"
             
-        sign = "⬆️" if sv > 0 else "⬇️"
+        sign = "INCREASED:" if sv > 0 else "DECREASED:"
         reasons.append(f"{sign} {label} ({abs(sv)/1e6:.1f}M)")
     return " | ".join(reasons) if reasons else "Normal Pattern"
 
@@ -394,9 +394,9 @@ with st.sidebar:
         "Why This Amount (SHAP)",
         "Branch Forecast",
         "Model Comparison (Benchmark)",
-        "🕹️ What-If Simulator",
+        "What-If Simulator",
         "Import Data",
-        "📊 Overview",
+        "Overview",
         "Model Performance",
     ], label_visibility="collapsed")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
@@ -472,8 +472,10 @@ if page == "Cash Need Calendar":
         # Week-wise grouped cards
         for wk in [1,2,3,4]:
             wk_data = br_fc[br_fc['Week']==wk]
-            conf_label = "🟢 HIGH Confidence" if wk==1 else ("🟡 MEDIUM Confidence" if wk==2 else "🔴 LOW Confidence")
-            st.markdown(f"**Week {wk} — {conf_label}**")
+            if len(wk_data) == 0: continue
+            conf = wk_data['Confidence'].iloc[0]
+            conf_icon = {'HIGH':'🟢','MEDIUM':'🟡','LOW':'🔴'}.get(conf,'⚪')
+            st.markdown(f"**Week {wk} — {conf_icon} {conf} Confidence** <span title=\"Confidence tiers are relative to this project's branch performance range, not absolute accuracy thresholds.\">ℹ️</span>", unsafe_allow_html=True)
             cols = st.columns(min(len(wk_data), 7))
             for ci, (_, row) in enumerate(wk_data.iterrows()):
                 with cols[ci % 7]:
@@ -533,10 +535,10 @@ if page == "Cash Need Calendar":
 
         # Download
         csv = disp.to_csv(index=False).encode('utf-8')
-        st.download_button("⬇️ Download CSV", csv, f"branch_{sel_br}_cash_calendar.csv", "text/csv")
+        st.download_button("Download CSV", csv, f"branch_{sel_br}_cash_calendar.csv", "text/csv")
 
     else:  # All Branches Heatmap
-        st.subheader("📊 All Branches — Cash Need Heatmap (Next 30 Days)")
+        st.subheader("All Branches — Cash Need Heatmap (Next 30 Days)")
         heat = forecast_df.pivot_table(index='Branch', columns='Date', values='Predicted_M')
         heat.columns = [d.strftime('%d %b') if hasattr(d,'strftime') else str(d) for d in pd.to_datetime(heat.columns)]
         heat.index = heat.index.astype(str)
@@ -615,7 +617,7 @@ elif page == "Why This Amount (SHAP)":
             <div style='color:#3B82F6;font-size:48px;font-weight:700;margin:8px 0'>{pred_val/1e6:.1f}M PKR</div>
             <div style='color: var(--text-secondary);font-size:14px'>Cash withdrawal predicted</div>
             <div style='color:{conf_color};margin-top:10px;font-size:16px'>
-                {conf_icon} {conf} Confidence &nbsp;|&nbsp; Range: {lower:.1f}M – {upper:.1f}M PKR &nbsp;|&nbsp; ±{unc:.0f}% uncertainty
+                {conf_icon} {conf} Confidence <span title="Confidence tiers are relative to this project's branch performance range, not absolute accuracy thresholds.">ℹ️</span> &nbsp;|&nbsp; Range: {lower:.1f}M – {upper:.1f}M PKR &nbsp;|&nbsp; ±{unc:.0f}% uncertainty
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -718,9 +720,13 @@ elif page == "Branch Forecast":
     tot = br_fc['Predicted_M'].sum()
 
     k1,k2,k3,k4 = st.columns(4)
-    k1.metric("Week 1 Avg", f"{wk1:.1f}M",   "🟢 HIGH conf")
-    k2.metric("Week 2 Avg", f"{wk2:.1f}M",   "🟡 MEDIUM")
-    k3.metric("Week 3-4 Avg", f"{wk3:.1f}M", "🔴 LOW conf")
+    conf = br_fc['Confidence'].iloc[0] if len(br_fc) > 0 else 'N/A'
+    conf_icon = {'HIGH':'🟢','MEDIUM':'🟡','LOW':'🔴'}.get(conf,'⚪')
+    help_msg = "Confidence tiers are relative to this project's branch performance range, not absolute accuracy thresholds."
+    
+    k1.metric("Week 1 Avg", f"{wk1:.1f}M",   f"{conf_icon} {conf} conf", help=help_msg)
+    k2.metric("Week 2 Avg", f"{wk2:.1f}M",   f"{conf_icon} {conf} conf", help=help_msg)
+    k3.metric("Week 3-4 Avg", f"{wk3:.1f}M", f"{conf_icon} {conf} conf", help=help_msg)
     k4.metric("30-Day Total", f"{tot:.0f}M",  "PKR")
 
     fig, ax = plt.subplots(figsize=(14,5))
@@ -803,9 +809,14 @@ elif page == "Model Performance":
 
     tab1, tab2, tab3 = st.tabs(["Per-Branch", "📊 Plots", "💼 Recommendations"])
     with tab1:
+        with st.expander("ℹ️ About Confidence/Quality Tiers"):
+            st.markdown("HIGH confidence branches have the lowest relative forecast error among our branches, not necessarily under 10% MAPE — cash flow data inherently has higher percentage error due to small-value day volatility.")
         bm = branch_metrics.copy()
+        p33 = bm['MAPE_%'].quantile(0.33)
+        p66 = bm['MAPE_%'].quantile(0.66)
         bm['Quality'] = bm['MAPE_%'].apply(
-            lambda x:'🟢 Excellent' if x<30 else ('🟡 Good' if x<60 else ('🟠 Moderate' if x<100 else '🔴 Poor')))
+            lambda x: 'HIGH' if x <= p33 else ('MEDIUM' if x <= p66 else 'LOW')
+        )
         st.dataframe(bm, use_container_width=True, hide_index=True)
     with tab2:
         plots = {
@@ -1014,12 +1025,18 @@ elif page == "Import Data":
                     st.info(f"Please ensure your CSV has exactly these columns (case-sensitive): {', '.join(required_cols)}")
                 else:
                     with st.spinner("Processing data, extracting features, and running ML models..."):
-                        from forecast_pipeline import generate_forecast
+                        from forecast_pipeline import generate_forecast, save_to_excel
                         
                         # Generate forecast using the pipeline
-                        fc_new, _ = generate_forecast(new_raw_df=new_raw_df, forecast_days=forecast_days)
+                        fc_new, fc_hd_new = generate_forecast(new_raw_df=new_raw_df, forecast_days=forecast_days)
                         
-                        st.success("Forecast Generated Successfully!")
+                        # Persist the output so other pages can use it
+                        save_to_excel(fc_new, fc_hd_new)
+                        
+                        # Invalidate cache so other pages reload data
+                        st.cache_data.clear()
+                        
+                        st.success("Forecast Generated and Saved Successfully!")
                         st.balloons()
                         
                         # Display the forecast

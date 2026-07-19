@@ -125,8 +125,8 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
     else:
         y_pred = y_pred_transformed
         
-    # Enforce 0 for Sundays
-    y_pred = np.where(X_test['Weekday'] == 6, 0, y_pred)
+    # Enforce 0 for Sundays (Removed per QA audit to let model predict naturally)
+    # y_pred = np.where(X_test['Weekday'] == 6, 0, y_pred)
     
     mae = mean_absolute_error(y_test_raw, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test_raw, y_pred))

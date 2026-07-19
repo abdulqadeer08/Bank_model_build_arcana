@@ -46,8 +46,8 @@ def preprocess_raw_to_halfdaily(df):
         Is_Holiday=('Is_Holiday', 'first')
     ).reset_index()
 
-    # Filter out Sundays as they generally don't have banking hours
-    half_daily = half_daily[half_daily['Weekday'] != 6].copy()
+    # Filter out Sundays as they generally don't have banking hours (Removed per QA audit)
+    # half_daily = half_daily[half_daily['Weekday'] != 6].copy()
     half_daily['Half_Day_Net_Cash'] = half_daily['Half_Day_Total_Credit'] - half_daily['Half_Day_Total_Debit']
     half_daily['AM_PM_Encoded'] = np.where(half_daily['AM_PM'] == 'AM', 0, 1)
     
@@ -192,24 +192,30 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
     # Load evaluation report for V3 MAE/MAPE
     try:
         eval_report = pd.read_csv('models/final_evaluation_report.csv')
+        eval_report['Branch'] = eval_report['Branch'].astype(str)
         branch_mape = eval_report.set_index('Branch')['MAPE_%'].to_dict()
+        p33 = eval_report['MAPE_%'].quantile(0.33)
+        p66 = eval_report['MAPE_%'].quantile(0.66)
     except Exception:
         branch_mape = {}
+        p33 = 10.0
+        p66 = 20.0
 
     def compute_uncertainty(row):
         step = row['Step']
-        br = row['Branch']
-        # Use branch MAPE as baseline, fallback to 10% if not found. Cap base at 15%.
-        base_uncertainty = min(branch_mape.get(br, 10.0) / 100.0, 0.15)
-        # Add temporal uncertainty (0 to 15% over 30 days)
-        uncertainty_pct = base_uncertainty + (step - 1) * (0.15 / forecast_days)
+        br = str(row['Branch'])
+        # Use exact branch MAPE without any generic cap or step-based additions
+        mape_val = branch_mape.get(br, 10.0)
+        uncertainty_pct = mape_val / 100.0
+        
         pred = row['Predicted_PKR']
         lower = pred * (1 - uncertainty_pct)
         upper = pred * (1 + uncertainty_pct)
         
-        if step <= 7:
+        # Derive Confidence from dynamically calculated percentiles (relative to cohort)
+        if mape_val <= p33:
             conf = 'HIGH'
-        elif step <= 14:
+        elif mape_val <= p66:
             conf = 'MEDIUM'
         else:
             conf = 'LOW'
