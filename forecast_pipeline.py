@@ -111,8 +111,6 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
     # 4. Generate Predictions Recursively
     for step in range(1, forecast_days + 1):
         target_date = last_date + pd.Timedelta(days=step)
-        if target_date.weekday() == 6:  # Skip Sundays for active ML prediction
-            continue
             
         for branch in branches:
             br_hist = working_history[working_history['tran_br_code'] == branch]
