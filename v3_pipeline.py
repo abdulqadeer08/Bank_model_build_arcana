@@ -29,12 +29,14 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
     df[f'rolling_14_std_{target}'] = df.groupby('tran_br_code')[target].transform(lambda x: x.shift(1).rolling(14, min_periods=2).std()).fillna(0)
 
 feature_cols = [
-    'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'Days_to_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
+    'tran_br_code', 'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'Days_to_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
     'Is_Salary_Day', 'Is_Holiday',
     'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit', 'rolling_14_std_Half_Day_Total_Debit',
     'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit', 'rolling_14_std_Half_Day_Total_Credit',
     'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash', 'rolling_14_std_Half_Day_Net_Cash'
 ]
+
+df['tran_br_code'] = df['tran_br_code'].astype('category')
 
 # Chronological split
 cutoff_idx = int(len(df) * 0.8)
@@ -83,6 +85,7 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
             'subsample': trial.suggest_float('subsample', 0.6, 1.0),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
             'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
+            'enable_categorical': True,
             'random_state': 42
         }
         
@@ -118,7 +121,7 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
     
     # 4. Train Final Model on all training data with best params
     print("Training final model with best parameters...")
-    final_model = xgb.XGBRegressor(**best_params, random_state=42)
+    final_model = xgb.XGBRegressor(**best_params, enable_categorical=True, random_state=42)
     final_model.fit(X_train, y_train)
     models[target] = final_model
     
@@ -134,9 +137,6 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
     else:
         y_pred = y_pred_transformed
         
-    # Enforce 0 for Sundays (Removed per QA audit to let model predict naturally)
-    # y_pred = np.where(X_test['Weekday'] == 6, 0, y_pred)
-    
     mae = mean_absolute_error(y_test_raw, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test_raw, y_pred))
     r2 = r2_score(y_test_raw, y_pred)

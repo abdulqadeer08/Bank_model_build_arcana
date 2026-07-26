@@ -105,7 +105,7 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
     model_net = joblib.load('models/v3/model_Half_Day_Net_Cash.pkl')
     
     feature_cols = [
-        'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'Days_to_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
+        'tran_br_code', 'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'Days_to_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
         'Is_Salary_Day', 'Is_Holiday',
         'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit', 'rolling_14_std_Half_Day_Total_Debit',
         'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit', 'rolling_14_std_Half_Day_Total_Credit',
@@ -164,6 +164,7 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
                         row[f'rolling_14_std_{t_col}'] = 0
                 
                 x_df = pd.DataFrame([row])[feature_cols]
+                x_df['tran_br_code'] = x_df['tran_br_code'].astype('category')
                 
                 # Inverse Transform V3 Models (log1p applied during training)
                 pred_dr_log = model_debit.predict(x_df)[0]

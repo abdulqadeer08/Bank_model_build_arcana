@@ -76,9 +76,10 @@ XGBoost uses "decision trees" and is incredibly powerful at finding non-linear r
 - **Hyperparameter Tuning:** Optuna was used to find the perfect settings for XGBoost (learning rate, tree depth, etc.), specifically tuning towards the MAE metric.
 
 ### Overall Performance Metrics
-- **MAE (Mean Absolute Error):** **9.52 Million PKR**. On average, predictions are within 9.5M PKR of the actual truth.
-- **R² Score:** **0.6334**. The model successfully explains 63% of the variance in the highly chaotic cash flow data (a very strong score for financial behavioral data).
+- **MAE (Mean Absolute Error):** **9.37 Million PKR**. On average, predictions are within 9.37M PKR of the actual truth.
+- **R² Score:** **0.7147**. The model successfully explains 71% of the variance in the highly chaotic cash flow data (a very strong score for financial behavioral data).
 
+*Note on the V3 Improvement:* Added branch identity as a categorical feature and corrected a test-evaluation bug (previously test targets were being capped before computing metrics, which understated true error); the corrected, improved model achieves R²=0.7147, MAE=9.37M PKR on the true uncapped test set.
 
 
 ## 6. Explainable AI (SHAP)

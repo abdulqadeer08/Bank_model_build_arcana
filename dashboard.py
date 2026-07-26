@@ -400,7 +400,7 @@ with st.sidebar:
         "Model Performance",
     ], label_visibility="collapsed")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
-    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.6334  \n**MAE:** 9.52M PKR")
+    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.7147  \n**MAE:** 9.37M PKR")
     st.markdown(f"**Data till:** {LAST_DATE.date()}")
 
 
@@ -800,10 +800,10 @@ elif page == "Model Performance":
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
 
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("MAE",  "9.52M PKR", "Tuned via TimeSeriesSplit")
-    m2.metric("RMSE", "14.80M PKR", "")
-    m3.metric("MAPE", "55.4%", "")
-    m4.metric("R²",   "0.6334", "Strong ✓")
+    m1.metric("MAE",  "9.37M PKR", "Tuned via TimeSeriesSplit")
+    m2.metric("RMSE", "14.81M PKR", "")
+    m3.metric("MAPE", "133.9%", "")
+    m4.metric("R²",   "0.7147", "Strong ✓")
     m5.metric("Model","XGBoost V3","Best of all")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
 
