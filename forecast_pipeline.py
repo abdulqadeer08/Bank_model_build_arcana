@@ -56,6 +56,11 @@ def preprocess_raw_to_halfdaily(df):
 def recalculate_lags(half_daily):
     half_daily = half_daily.sort_values(['tran_br_code', 'start_date', 'AM_PM']).reset_index(drop=True)
     
+    half_daily['lag_1_Txn_Count'] = half_daily.groupby('tran_br_code')['Txn_Count'].shift(1).fillna(0)
+    half_daily['rolling_14_mean_Txn_Count'] = half_daily.groupby('tran_br_code')['Txn_Count'].transform(
+        lambda x: x.shift(1).rolling(14, min_periods=1).mean()
+    ).fillna(0)
+    
     for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Cash']:
         half_daily[f'lag_1_{target}'] = half_daily.groupby('tran_br_code')[target].shift(1)
         half_daily[f'lag_2_{target}'] = half_daily.groupby('tran_br_code')[target].shift(2)
@@ -64,6 +69,9 @@ def recalculate_lags(half_daily):
         half_daily[f'rolling_14_mean_{target}'] = half_daily.groupby('tran_br_code')[target].transform(
             lambda x: x.shift(1).rolling(14, min_periods=1).mean()
         )
+        half_daily[f'rolling_14_std_{target}'] = half_daily.groupby('tran_br_code')[target].transform(
+            lambda x: x.shift(1).rolling(14, min_periods=2).std()
+        ).fillna(0)
 
     # Drop early rows where rolling features aren't fully stable
     half_daily = half_daily.dropna(subset=['lag_60_Half_Day_Total_Debit']).reset_index(drop=True)
@@ -97,11 +105,11 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
     model_net = joblib.load('models/v3/model_Half_Day_Net_Cash.pkl')
     
     feature_cols = [
-        'AM_PM_Encoded', 'Txn_Count', 'Weekday', 'Is_Weekend', 'Month', 'Day',
+        'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'Days_to_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
         'Is_Salary_Day', 'Is_Holiday',
-        'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit',
-        'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit',
-        'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash'
+        'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit', 'rolling_14_std_Half_Day_Total_Debit',
+        'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit', 'rolling_14_std_Half_Day_Total_Credit',
+        'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash', 'rolling_14_std_Half_Day_Net_Cash'
     ]
     
     working_history = history.sort_values(['tran_br_code', 'start_date', 'AM_PM']).groupby('tran_br_code').tail(65).copy()
@@ -127,8 +135,16 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
                     'Month': target_date.month,
                     'Day': target_date.day,
                     'Is_Salary_Day': is_salary_day(target_date.day),
-                    'Is_Holiday': 1 if target_date in pk_holidays else 0
+                    'Is_Holiday': 1 if target_date in pk_holidays else 0,
+                    'Days_to_Salary': max(0, min(25, 25 - target_date.day if target_date.day < 25 else (31 - target_date.day + 5)))
                 }
+                
+                try:
+                    row['lag_1_Txn_Count'] = br_hist['Txn_Count'].iloc[-1]
+                    row['rolling_14_mean_Txn_Count'] = br_hist['Txn_Count'].tail(14).mean()
+                except IndexError:
+                    row['lag_1_Txn_Count'] = branch_avgs.get(branch, 0)
+                    row['rolling_14_mean_Txn_Count'] = branch_avgs.get(branch, 0)
                 
                 # Fetch Lags from historical queue
                 for t_col in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Cash']:
@@ -138,12 +154,14 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
                         row[f'lag_14_{t_col}'] = br_hist[t_col].iloc[-14]
                         row[f'lag_60_{t_col}'] = br_hist[t_col].iloc[-60]
                         row[f'rolling_14_mean_{t_col}'] = br_hist[t_col].tail(14).mean()
+                        row[f'rolling_14_std_{t_col}'] = br_hist[t_col].tail(14).std() if len(br_hist[t_col]) > 1 else 0
                     except IndexError:
                         row[f'lag_1_{t_col}'] = 0
                         row[f'lag_2_{t_col}'] = 0
                         row[f'lag_14_{t_col}'] = 0
                         row[f'lag_60_{t_col}'] = 0
                         row[f'rolling_14_mean_{t_col}'] = 0
+                        row[f'rolling_14_std_{t_col}'] = 0
                 
                 x_df = pd.DataFrame([row])[feature_cols]
                 

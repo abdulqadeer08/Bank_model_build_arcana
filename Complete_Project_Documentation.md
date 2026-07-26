@@ -43,7 +43,11 @@ We "engineer" new columns (features) to give the AI context about *why* transact
 
 ### B. Business Logic Features
 - **`Is_Salary_Day`**: Set to `1` if the day is between the 1st-5th or 25th-31st of the month. Salary days consistently drive massive cash withdrawals.
+- **`Days_to_Salary`**: Measures how many days remain until the next salary cycle. Proximity to a salary day is a highly predictive continuous feature compared to a binary flag.
 - **`Is_Holiday`**: Cross-references the date with a static list of Pakistan's public holidays (Eid, Independence Day, Kashmir Day, etc.). Holidays usually see high cash demand right before they begin, and zero demand during.
+
+### B.2. Outlier Capping (Winsorization)
+- To prevent extreme, one-off spikes (e.g., massive corporate withdrawals or Eid rushes) from distorting the rolling averages and model weights, we apply **99th Percentile Capping** to the target variable before generating features and training.
 
 ### C. Lag Features (The Model's "Memory")
 To predict tomorrow, the model needs to know what happened recently. We shift historical data to create "Lags":
@@ -51,9 +55,11 @@ To predict tomorrow, the model needs to know what happened recently. We shift hi
 - **`lag_2`**: What happened yesterday at this exact time?
 - **`lag_14`**: What happened exactly one week ago?
 - **`lag_60`**: What happened exactly one month ago?
+- **`lag_1_Txn_Count`**: The number of transactions that occurred in the previous half-day. *(Note: Using concurrent transaction counts causes Feature Leakage; hence, only strictly historical lagged counts are used).*
 
-### D. Rolling Averages
+### D. Rolling Averages & Volatility
 - **14-Day Rolling Mean:** A smoothed average of the last 14 days of withdrawals. This helps the model ignore one-off random spikes and focus on the broader trend.
+- **14-Day Rolling Standard Deviation:** Captures recent volatility in cash demand, helping the model identify turbulent vs. stable periods.
 
 ---
 
@@ -63,9 +69,11 @@ During development, multiple algorithms were tested, including Facebook's Prophe
 ### Why XGBoost?
 XGBoost uses "decision trees" and is incredibly powerful at finding non-linear relationships (e.g., "If it is a Monday AND a Salary Day AND a week before Eid, then increase demand by 300%"). Standard models struggle with these complex overlapping conditions.
 
-### Training Strategy
-- **TimeSeriesSplit:** Because time moves in one direction, we cannot randomly split train/test data (that would allow the model to cheat by looking at the future). We used a 3-fold rolling window to simulate real-world forecasting.
-- **Hyperparameter Tuning:** Optuna was used to find the perfect settings for XGBoost (learning rate, tree depth, etc.).
+### Training Strategy & Optimization for MAE
+- **Objective Function:** The ultimate goal is to minimize Mean Absolute Error (MAE). Therefore, XGBoost is explicitly configured with `objective='reg:absoluteerror'` (and LightGBM with `objective='regression_l1'`). Training directly on Absolute Error prevents the model from heavily penalizing large outliers, resulting in vastly improved real-world MAE compared to the default Squared Error (MSE).
+- **Strict Chronological Split:** The Train/Test split (`cutoff_date`) is calculated rigorously using the 80th percentile of unique calendar dates across all branches, guaranteeing a genuine "past vs future" split without cross-branch leakage.
+- **TimeSeriesSplit Validation:** We used a 3-fold rolling window in Optuna to simulate real-world forecasting. The training data is explicitly sorted chronologically to ensure the rolling folds move strictly forward in time.
+- **Hyperparameter Tuning:** Optuna was used to find the perfect settings for XGBoost (learning rate, tree depth, etc.), specifically tuning towards the MAE metric.
 
 ### Overall Performance Metrics
 - **MAE (Mean Absolute Error):** **9.52 Million PKR**. On average, predictions are within 9.5M PKR of the actual truth.
