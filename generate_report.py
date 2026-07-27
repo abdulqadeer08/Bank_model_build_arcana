@@ -63,33 +63,33 @@ for br, grp in test_df_copy.groupby('tran_br_code'):
     })
 
 report = pd.DataFrame(branch_stats)
-# Re-calculate quantiles across branches
-p33 = report['MAPE_%'].quantile(0.33)
-p66 = report['MAPE_%'].quantile(0.66)
+# Re-calculate quantiles across branches using MAE to avoid distortion from near-zero-demand outliers
+p33 = report['MAE_M'].quantile(0.33)
+p66 = report['MAE_M'].quantile(0.66)
 
-def get_trust(mape):
-    if mape <= p33: return '🟢 HIGH'
-    elif mape <= p66: return '🟡 MEDIUM'
-    else: return '🟠 MODERATE'
+def get_trust(mae):
+    if mae <= p33: return 'HIGH'
+    elif mae <= p66: return 'MEDIUM'
+    else: return 'LOW'
 
-def get_buffer(mape):
-    if mape <= p33: return 5
-    elif mape <= p66: return 12
+def get_buffer(mae):
+    if mae <= p33: return 5
+    elif mae <= p66: return 12
     else: return 20
 
-def get_action(mape):
-    if mape <= p33: return 'Use model directly for replenishment'
-    elif mape <= p66: return 'Add safety buffer, monitor weekly'
+def get_action(mae):
+    if mae <= p33: return 'Use model directly for replenishment'
+    elif mae <= p66: return 'Add safety buffer, monitor weekly'
     else: return 'Use with caution, manual override advised'
 
-report['Trust_Level'] = report['MAPE_%'].apply(get_trust)
-report['Buffer_%'] = report['MAPE_%'].apply(get_buffer)
+report['Trust_Level'] = report['MAE_M'].apply(get_trust)
+report['Buffer_%'] = report['MAE_M'].apply(get_buffer)
 report['Recommended_M'] = (report['Avg_Demand_M'] + report['MAE_M']) * (1 + report['Buffer_%']/100)
 report['Recommended_M'] = report['Recommended_M'].round(2)
-report['Action'] = report['MAPE_%'].apply(get_action)
+report['Action'] = report['MAE_M'].apply(get_action)
 
-report = report.sort_values('MAPE_%')
+report = report.sort_values('MAE_M')
 report.to_csv('models/final_evaluation_report.csv', index=False)
 print("Updated final_evaluation_report.csv")
-print(f"New p33 cutoff: {p33:.2f}")
-print(f"New p66 cutoff: {p66:.2f}")
+print(f"New p33 cutoff (MAE): {p33:.2f}")
+print(f"New p66 cutoff (MAE): {p66:.2f}")

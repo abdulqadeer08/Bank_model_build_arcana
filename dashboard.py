@@ -400,7 +400,7 @@ with st.sidebar:
         "Model Performance",
     ], label_visibility="collapsed")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
-    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.7147  \n**MAE:** 9.37M PKR")
+    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.6785  \n**MAE:** 9.36M PKR")
     st.markdown(f"**Data till:** {LAST_DATE.date()}")
 
 
@@ -800,11 +800,11 @@ elif page == "Model Performance":
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
 
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("MAE",  "9.37M PKR", "Tuned via TimeSeriesSplit")
-    m2.metric("RMSE", "14.81M PKR", "")
-    m3.metric("MAPE", "133.9%", "")
-    m4.metric("R²",   "0.7147", "Strong ✓")
-    m5.metric("Model","XGBoost V3","Best of all")
+    m1.metric("MAE",  "9.36M PKR", "Tuned via TimeSeriesSplit")
+    m2.metric("RMSE", "15.72M PKR", "")
+    m3.metric("MAPE", "132.7%", "")
+    m4.metric("R²",   "0.6785", "Production ✓")
+    m5.metric("Model","XGBoost V3","Production Choice")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
 
     tab1, tab2, tab3 = st.tabs(["Per-Branch", "📊 Plots", "💼 Recommendations"])
@@ -812,9 +812,9 @@ elif page == "Model Performance":
         with st.expander("ℹ️ About Confidence/Quality Tiers"):
             st.markdown("HIGH confidence branches have the lowest relative forecast error among our branches, not necessarily under 10% MAPE — cash flow data inherently has higher percentage error due to small-value day volatility.")
         bm = branch_metrics.copy()
-        p33 = bm['MAPE_%'].quantile(0.33)
-        p66 = bm['MAPE_%'].quantile(0.66)
-        bm['Quality'] = bm['MAPE_%'].apply(
+        p33 = bm['MAE_M'].quantile(0.33)
+        p66 = bm['MAE_M'].quantile(0.66)
+        bm['Quality'] = bm['MAE_M'].apply(
             lambda x: 'HIGH' if x <= p33 else ('MEDIUM' if x <= p66 else 'LOW')
         )
         st.dataframe(bm, use_container_width=True, hide_index=True)
@@ -837,7 +837,7 @@ elif page == "Model Performance":
     with tab3:
         er = eval_report[['Branch','Avg_Demand_M','MAE_M','MAPE_%','Trust_Level','Buffer_%','Recommended_M']].copy()
         st.dataframe(er, use_container_width=True, hide_index=True)
-        st.info("Buffer Strategy: HIGH → 5% | MEDIUM → 12% | LOW → 30%")
+        st.info("Buffer Strategy: HIGH → 5% | MEDIUM → 12% | LOW → 20%")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -923,11 +923,12 @@ elif page == "🕹️ What-If Simulator":
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "Model Comparison (Benchmark)":
     st.title("Model Comparison (Benchmark)")
-    st.markdown("*Comparing Prophet baseline with our production XGBoost Model.*")
+    st.markdown("*Comparing Baselines, Prophet, LightGBM, and Production XGBoost V3.*")
     
     st.markdown("""
-    <div style='background-color:rgba(243,156,18,0.15); border-left:4px solid #FBBF24; padding:12px; border-radius:4px; margin-bottom:20px;'>
-        <b style='color:#FBBF24;'>⚠️ Important Note:</b> This page is strictly for comparison and validation. Production forecasts (Branch Forecast tab) are generated using the XGBoost V3 model, which yields higher accuracy (R² = 0.63). Prophet is included here as a cross-check benchmark.
+    <div style='background-color:rgba(59,130,246,0.1); border-left:4px solid #3B82F6; padding:16px; border-radius:8px; margin-bottom:20px; line-height:1.6;'>
+        <b style='color:#60A5FA; font-size:15px;'>⚖️ Production Choice Justification (XGBoost V3 vs LightGBM):</b><br>
+        LightGBM shows a benchmark edge in R² (0.7142 vs 0.6785, roughly 5.3% relative difference) alongside a small MAE advantage (8.96M vs 9.36M PKR, ~4.3% relative difference). This performance gap was evaluated carefully. XGBoost V3 was retained as the production model because: (1) the SHAP TreeExplainer-based explainability layer — including the 'Why This Amount?' page and all waterfall visualizations — was built and validated specifically around XGBoost's tree structure, and migrating this to LightGBM would require rebuilding and re-validating explainability from scratch, (2) the confidence tier system and forecast pipeline are calibrated against XGBoost's error distribution, and (3) given project timeline constraints, this was judged an acceptable trade-off — though LightGBM remains a strong candidate for a future iteration, particularly if explainability tooling is also migrated (e.g., SHAP also supports LightGBM's tree structure, so this migration is feasible for future work).
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)

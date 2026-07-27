@@ -66,6 +66,25 @@ To predict tomorrow, the model needs to know what happened recently. We shift hi
 ## 5. The Machine Learning Model (XGBoost V3)
 During development, multiple algorithms were tested, including Facebook's Prophet (a standard time-series model). The final production model is **XGBoost (eXtreme Gradient Boosting)**.
 
+### Why XGBoost Over LightGBM (Production Choice Justification)
+During final benchmarking with a fixed random seed (random_state=42) for full 
+reproducibility, LightGBM showed a competitive performance advantage:
+- LightGBM: R² = 0.7142, MAE = 8.96M PKR
+- XGBoost V3 (Production): R² = 0.6785, MAE = 9.36M PKR
+
+LightGBM shows a benchmark edge in R² (0.7142 vs 0.6785, roughly 5.3% relative 
+difference) alongside a small MAE advantage (8.96M vs 9.36M PKR, ~4.3% relative difference). 
+This performance gap was evaluated carefully. XGBoost V3 
+was still retained as the production model because: (1) the SHAP TreeExplainer-based 
+explainability layer — including the 'Why This Amount?' page and all waterfall 
+visualizations — was built and validated specifically around XGBoost's tree structure, 
+and migrating this to LightGBM would require rebuilding and re-validating explainability 
+from scratch, (2) the confidence tier system and forecast pipeline are calibrated 
+against XGBoost's error distribution, and (3) given project timeline constraints, this 
+was judged an acceptable trade-off — though LightGBM remains a strong candidate for a 
+future iteration, particularly if explainability tooling is also migrated (e.g., SHAP 
+also supports LightGBM's tree structure, so this migration is feasible for future work).
+
 ### Why XGBoost?
 XGBoost uses "decision trees" and is incredibly powerful at finding non-linear relationships (e.g., "If it is a Monday AND a Salary Day AND a week before Eid, then increase demand by 300%"). Standard models struggle with these complex overlapping conditions.
 
@@ -76,10 +95,10 @@ XGBoost uses "decision trees" and is incredibly powerful at finding non-linear r
 - **Hyperparameter Tuning:** Optuna was used to find the perfect settings for XGBoost (learning rate, tree depth, etc.), specifically tuning towards the MAE metric.
 
 ### Overall Performance Metrics
-- **MAE (Mean Absolute Error):** **9.37 Million PKR**. On average, predictions are within 9.37M PKR of the actual truth.
-- **R² Score:** **0.7147**. The model successfully explains 71% of the variance in the highly chaotic cash flow data (a very strong score for financial behavioral data).
+- **MAE (Mean Absolute Error):** **9.36 Million PKR** on the honest uncapped test set. On average, predictions are within 9.36M PKR of actual withdrawals.
+- **R² Score:** **0.6785**. The half-daily production model successfully explains ~67.9% of the variance in the highly volatile cash flow data.
 
-*Note on the V3 Improvement:* Added branch identity as a categorical feature and corrected a test-evaluation bug (previously test targets were being capped before computing metrics, which understated true error); the corrected, improved model achieves R²=0.7147, MAE=9.37M PKR on the true uncapped test set.
+*Note on V3 Evaluation:* The production pipeline (`v3_pipeline.py`) operates on half-daily intervals (AM/PM) with `tran_br_code` as a categorical feature and `objective='reg:absoluteerror'`, achieving R² = 0.6785, MAE = 9.36M PKR on the honest uncapped test set.
 
 
 ## 6. Explainable AI (SHAP)
@@ -99,14 +118,16 @@ This logic drives the "Why This Amount" waterfall charts in the dashboard.
 ## 7. Confidence Tiers & Uncertainty Bounds
 Every forecast comes with a margin of error. We grade every branch into **HIGH**, **MEDIUM**, or **LOW** confidence tiers.
 
-### The Methodology (Dynamic Cohort Percentiles)
-We **do not** use standard absolute thresholds (like "under 10% error is HIGH"). Cash flow data has many "low value" days where a prediction of 2M instead of 1M looks like a 100% error, artificially inflating the MAPE (Mean Absolute Percentage Error).
+### The Methodology (Dynamic Cohort Percentiles based on MAE)
+We **do not** use standard absolute percentage thresholds (like "under 10% error is HIGH") or MAPE-based percentiles for tiering. Cash flow data has many "low value" or near-zero demand days where a small absolute error (e.g., predicting 2M instead of 1M) looks like a 100%+ error. This artificially inflates the MAPE (Mean Absolute Percentage Error) for branches with smaller volumes, distorting their reliability score and incorrectly pushing them into the LOW tier.
 
-Instead, we use **Dynamic Relative Percentiles**:
-The system looks at the historical MAPE of *all* branches and calculates the 33rd (p33) and 66th (p66) percentiles. Currently:
-- **HIGH Confidence:** Bottom third of branches (MAPE ≤ 39.86%). These are the most predictable, stable branches.
-- **MEDIUM Confidence:** Middle third of branches (39.86% < MAPE ≤ 47.64%).
-- **LOW Confidence:** Top third of branches (MAPE > 47.64%). These branches are highly volatile and their forecasts require manual managerial review.
+Instead, we use **Dynamic Relative Percentiles based on MAE (Mean Absolute Error)**:
+The system looks at the historical MAE of *all* branches and calculates the 33rd (p33) and 66th (p66) percentiles.
+- **HIGH Confidence:** Bottom third of branches (MAE ≤ p33). These are the most predictable, stable branches in absolute terms.
+- **MEDIUM Confidence:** Middle third of branches (p33 < MAE ≤ p66).
+- **LOW Confidence:** Top third of branches (MAE > p66). These branches are highly volatile and their forecasts require manual managerial review.
+
+*(Note: While MAE determines the Confidence Tier, MAPE—capped at 150%—is still used to draw proportional upper/lower uncertainty bounds on the final forecast chart.)*
 
 If the model is retrained and overall accuracy improves, these percentiles dynamically recalculate, ensuring the tiers always accurately represent the "best, average, and worst" branches.
 

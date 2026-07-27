@@ -213,28 +213,33 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
         eval_report = pd.read_csv('models/final_evaluation_report.csv')
         eval_report['Branch'] = eval_report['Branch'].astype(str)
         branch_mape = eval_report.set_index('Branch')['MAPE_%'].to_dict()
-        p33 = eval_report['MAPE_%'].quantile(0.33)
-        p66 = eval_report['MAPE_%'].quantile(0.66)
+        branch_mae = eval_report.set_index('Branch')['MAE_M'].to_dict()
+        p33_mae = eval_report['MAE_M'].quantile(0.33)
+        p66_mae = eval_report['MAE_M'].quantile(0.66)
     except Exception:
         branch_mape = {}
-        p33 = 10.0
-        p66 = 20.0
+        branch_mae = {}
+        p33_mae = 5.0
+        p66_mae = 10.0
 
     def compute_uncertainty(row):
         step = row['Step']
         br = str(row['Branch'])
-        # Use exact branch MAPE without any generic cap or step-based additions
+        
+        # Use MAPE for uncertainty bounds, but cap at 150% to prevent exploding bounds on outliers
         mape_val = branch_mape.get(br, 10.0)
-        uncertainty_pct = mape_val / 100.0
+        capped_mape = min(mape_val, 150.0)
+        uncertainty_pct = capped_mape / 100.0
         
         pred = row['Predicted_PKR']
         lower = pred * (1 - uncertainty_pct)
         upper = pred * (1 + uncertainty_pct)
         
-        # Derive Confidence from dynamically calculated percentiles (relative to cohort)
-        if mape_val <= p33:
+        # Derive Confidence from dynamically calculated MAE percentiles (stable to near-zero outliers)
+        mae_val = branch_mae.get(br, 10.0)
+        if mae_val <= p33_mae:
             conf = 'HIGH'
-        elif mape_val <= p66:
+        elif mae_val <= p66_mae:
             conf = 'MEDIUM'
         else:
             conf = 'LOW'
@@ -258,10 +263,10 @@ def save_to_excel(fc_final, fc_half_daily, output_path='models/forecast_next30da
     print(f"Saving forecast to {output_path}...")
     
     def week_label(step):
-        if step <= 7:  return 'Week1 (HIGH)'
-        if step <= 14: return 'Week2 (MEDIUM)'
-        if step <= 21: return 'Week3 (LOW)'
-        return 'Week4 (LOW)'
+        if step <= 7:  return 'Week1'
+        if step <= 14: return 'Week2'
+        if step <= 21: return 'Week3'
+        return 'Week4'
 
     fc_final['Week'] = fc_final['Step'].apply(week_label)
     
@@ -275,6 +280,13 @@ def save_to_excel(fc_final, fc_half_daily, output_path='models/forecast_next30da
     weekly_pivot = weekly.pivot_table(
         index='Branch', columns='Week', values='Daily_Avg_M'
     ).reset_index()
+    
+    try:
+        eval_report = pd.read_csv('models/final_evaluation_report.csv')
+        trust_map = dict(zip(eval_report['Branch'], eval_report['Trust_Level']))
+        weekly_pivot['Trust_Level'] = weekly_pivot['Branch'].map(trust_map)
+    except Exception:
+        pass
     
     branches = sorted(fc_final['Branch'].unique())
     

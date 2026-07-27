@@ -98,7 +98,7 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
             X_t, X_v = X_train.iloc[train_index], X_train.iloc[val_index]
             y_t, y_v = y_train.iloc[train_index], y_train.iloc[val_index]
             
-            model = xgb.XGBRegressor(**params, early_stopping_rounds=20)
+            model = xgb.XGBRegressor(**params, early_stopping_rounds=20, objective='reg:absoluteerror')
             model.fit(X_t, y_t, eval_set=[(X_v, y_v)], verbose=False)
             
             preds = model.predict(X_v)
@@ -113,7 +113,7 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
         return np.mean(errors)
 
     print(f"Running Optuna Optimization for {target} (20 trials)...")
-    study = optuna.create_study(direction='minimize')
+    study = optuna.create_study(direction='minimize', sampler=optuna.samplers.TPESampler(seed=42))
     study.optimize(objective, n_trials=20)
     
     best_params = study.best_params
@@ -121,7 +121,7 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
     
     # 4. Train Final Model on all training data with best params
     print("Training final model with best parameters...")
-    final_model = xgb.XGBRegressor(**best_params, enable_categorical=True, random_state=42)
+    final_model = xgb.XGBRegressor(**best_params, enable_categorical=True, random_state=42, objective='reg:absoluteerror')
     final_model.fit(X_train, y_train)
     models[target] = final_model
     
