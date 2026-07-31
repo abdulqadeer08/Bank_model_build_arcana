@@ -1,0 +1,13 @@
+{
+  "adopted": false,
+  "production_mae": 9360000.0,
+  "production_r2": 0.6785,
+  "production_mape": 132.7,
+  "diff_mae": 14882723.495243903,
+  "diff_r2": 0.3749700341756034,
+  "diff_mape": 197.68256691863832,
+  "diff_rmse": 36942638.388570525,
+  "mae_improvement_pct": -59.0034561457682,
+  "r2_improvement_pct": -44.73544079946892,
+  "mape_improvement_pct": -48.969530458657374
+}

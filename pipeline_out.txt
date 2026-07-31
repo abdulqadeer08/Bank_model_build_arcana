@@ -1,0 +1,8 @@
+﻿Starting V3 Advanced Pipeline (Optuna + Log Transform)...
+Loaded 17109 rows of data.
+Train size: 16975, Test size: 134
+
+==================================================
+Training Advanced Model for: Half_Day_Total_Debit
+==================================================
+Running Optuna Optimization for Half_Day_Total_Debit (20 trials)...

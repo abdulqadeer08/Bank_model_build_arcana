@@ -100,6 +100,31 @@ XGBoost uses "decision trees" and is incredibly powerful at finding non-linear r
 
 *Note on V3 Evaluation:* The production pipeline (`v3_pipeline.py`) operates on half-daily intervals (AM/PM) with `tran_br_code` as a categorical feature and `objective='reg:absoluteerror'`, achieving R² = 0.6785, MAE = 9.36M PKR on the honest uncapped test set.
 
+### Stationarity Analysis & Differencing Investigation
+
+Given the high overall MAPE (132.7%), a formal investigation was conducted to determine whether non-stationary data could be a contributing factor and whether differencing the target variable would improve model performance.
+
+**ADF (Augmented Dickey-Fuller) Test Results:**
+The ADF test was run on `Half_Day_Total_Debit` at three levels:
+
+| Level | ADF p-value (Raw) | ADF p-value (log1p) | Verdict |
+|-------|-------------------|---------------------|---------|
+| Overall (all branches) | 0.000000 | 0.000000 | STATIONARY |
+| All 15 individual branches | 0.000000 (all) | 0.000000–0.000512 (all) | STATIONARY (15/15) |
+
+**Finding:** The data is already stationary at every level tested — both in raw and log-transformed form. Every single branch has a p-value well below the 0.05 threshold (most are effectively zero). Non-stationarity is **not** the cause of the high MAPE.
+
+**Differencing Experiment:**
+Despite the data already being stationary, a controlled differencing experiment was conducted for completeness. A per-branch differenced target (`value[T] - value[T-1]`) was created, and XGBoost was retrained with the exact same features, train/test split, Optuna configuration (seed=42, 20 trials), and `objective='reg:absoluteerror'` — changing only the target variable. Predictions were reconstructed via `predicted_level[T] = actual_level[T-1] + predicted_diff[T]` using true actuals for fair one-step-ahead evaluation.
+
+| Metric | Production (no differencing) | With Differencing | Change |
+|--------|------------------------------|-------------------|--------|
+| R² | 0.6785 | 0.3750 | Decreased 44.7% (worse) |
+| MAE | 9.36M PKR | 14.88M PKR | Increased 59.0% (worse) |
+| MAPE | 132.7% | 197.7% | Increased 49.0% (worse) |
+
+**Conclusion:** Differencing was **not adopted**. It significantly degraded all metrics. The existing lag features (lag_1, lag_2, lag_14, lag_60) and rolling statistics (rolling_14_mean, rolling_14_std) already implicitly capture temporal dependencies and level changes, making explicit differencing redundant and harmful — it removes level information that the model needs. The high MAPE is attributable to the inherent volatility of half-daily cash flows (with many near-zero demand periods inflating percentage errors), not to non-stationarity.
+
 
 ## 6. Explainable AI (SHAP)
 A major requirement for financial systems is "Explainability." Bank managers will not trust a black-box AI.

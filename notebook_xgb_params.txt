@@ -1,0 +1,23 @@
+# ── 6.4 XGBoost V3 (Tuned matching production) ───────────────────────────
+# Use exact hyperparams from v3_pipeline.py to match production
+best_params = {
+    'colsample_bytree': 0.6082643854734315,
+    'learning_rate': 0.07184164822290748,
+    'max_depth': 4,
+    'min_child_weight': 5,
+    'n_estimators': 450,
+    'subsample': 0.6543262151830934,
+    'enable_categorical': True,
+    'random_state': 42
+}
+
+print('Training XGBoost V3 model with production hyperparams...')
+xgb_model = xgb.XGBRegressor(**best_params)
+xgb_model.fit(X_train, y_train_log)
+print('XGBoost V3 model trained.')
+
+# Predict & inverse-transform
+y_pred_log = xgb_model.predict(X_test)
+y_pred_xgb = np.expm1(y_pred_log)
+
+results.append(evaluate(y_test_raw, y_pred_xgb, 'XGBoost V3 (Tuned)'))
