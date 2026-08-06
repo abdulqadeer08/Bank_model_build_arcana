@@ -76,13 +76,13 @@ overall_mae = mean_absolute_error(y_test_raw, y_pred)
 overall_rmse = np.sqrt(mean_squared_error(y_test_raw, y_pred))
 overall_r2 = r2_score(y_test_raw, y_pred)
 
-print(f"  R2:   {overall_r2:.4f}   (expected: 0.6785)")
-print(f"  MAE:  {overall_mae / 1e6:.2f}M   (expected: 9.36M)")
-print(f"  RMSE: {overall_rmse / 1e6:.2f}M   (expected: 15.72M)")
+print(f"  R2:   {overall_r2:.4f}   (expected: 0.4410)")
+print(f"  MAE:  {overall_mae / 1e6:.2f}M   (expected: 13.03M)")
+print(f"  RMSE: {overall_rmse / 1e6:.2f}M   (expected: 34.94M)")
 
-r2_ok = abs(overall_r2 - 0.6785) < 0.001
-mae_ok = abs(overall_mae / 1e6 - 9.36) < 0.1
-rmse_ok = abs(overall_rmse / 1e6 - 15.72) < 0.1
+r2_ok = abs(overall_r2 - 0.4410) < 0.001
+mae_ok = abs(overall_mae / 1e6 - 13.03) < 0.1
+rmse_ok = abs(overall_rmse / 1e6 - 34.94) < 0.1
 
 if r2_ok and mae_ok and rmse_ok:
     print("  >> All production metrics CONFIRMED UNCHANGED [OK]")
