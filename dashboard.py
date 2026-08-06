@@ -400,7 +400,7 @@ with st.sidebar:
         "Model Performance",
     ], label_visibility="collapsed")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
-    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.6785  \n**MAE:** 9.36M PKR")
+    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.6785  \n**MAE:** 9.36M PKR  \n**WMAPE:** _see Model Performance_")
     st.markdown(f"**Data till:** {LAST_DATE.date()}")
 
 
@@ -799,12 +799,17 @@ elif page == "Model Performance":
     st.title("Model Evaluation")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
 
-    m1,m2,m3,m4,m5 = st.columns(5)
+    m1,m2,m3,m4,m5,m6,m7 = st.columns(7)
     m1.metric("MAE",  "9.36M PKR", "Tuned via TimeSeriesSplit")
     m2.metric("RMSE", "15.72M PKR", "")
     m3.metric("MAPE", "132.7%", "")
-    m4.metric("R²",   "0.6785", "Production ✓")
-    m5.metric("Model","XGBoost V3","Production Choice")
+    # SMAPE and WMAPE: compute from eval_report if available, else show placeholder
+    _smape_val = eval_report['SMAPE_%'].mean() if 'SMAPE_%' in eval_report.columns else 'N/A'
+    _wmape_val = eval_report['WMAPE_%'].mean() if 'WMAPE_%' in eval_report.columns else 'N/A'
+    m4.metric("SMAPE", f"{_smape_val:.1f}%" if isinstance(_smape_val, float) else _smape_val, "Symmetric")
+    m5.metric("WMAPE", f"{_wmape_val:.1f}%" if isinstance(_wmape_val, float) else _wmape_val, "Recommended")
+    m6.metric("R²",   "0.6785", "Production")
+    m7.metric("Model","XGBoost V3","Production Choice")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
 
     tab1, tab2, tab3 = st.tabs(["Per-Branch", "📊 Plots", "💼 Recommendations"])
@@ -835,9 +840,17 @@ elif page == "Model Performance":
         else:
             st.warning(f"Not found: {path}")
     with tab3:
-        er = eval_report[['Branch','Avg_Demand_M','MAE_M','MAPE_%','Trust_Level','Buffer_%','Recommended_M']].copy()
+        er = eval_report.copy()
+        # Show SMAPE/WMAPE columns if they exist in the report
+        display_cols = ['Branch','Avg_Demand_M','MAE_M','MAPE_%']
+        if 'SMAPE_%' in er.columns:
+            display_cols.append('SMAPE_%')
+        if 'WMAPE_%' in er.columns:
+            display_cols.append('WMAPE_%')
+        display_cols.extend(['Trust_Level','Buffer_%','Recommended_M'])
+        er = er[[c for c in display_cols if c in er.columns]]
         st.dataframe(er, use_container_width=True, hide_index=True)
-        st.info("Buffer Strategy: HIGH → 5% | MEDIUM → 12% | LOW → 20%")
+        st.info("Buffer Strategy: HIGH -> 5% | MEDIUM -> 12% | LOW -> 20%  |  WMAPE is recommended for bank presentations (less sensitive to near-zero-demand days).")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -990,6 +1003,36 @@ elif page == "Model Comparison (Benchmark)":
     except Exception as e:
         st.warning("Prophet Forecast data not found. Please run `ts_pipeline.py` first.")
         st.code(str(e))
+
+    # ── Benchmark Comparison Table (all 4 models) ─────────────────────────
+    st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
+    st.subheader("Model Benchmark Comparison Table")
+    st.markdown("*Side-by-side metrics for all tested models. WMAPE is the recommended headline metric for presentations.*")
+
+    try:
+        import os as _os
+        if _os.path.exists('models/model_results.csv'):
+            model_results = pd.read_csv('models/model_results.csv')
+            # Show available columns
+            display_cols_mr = ['Model']
+            for col in ['R2', 'MAE_M', 'RMSE_M', 'MAPE', 'SMAPE', 'WMAPE']:
+                if col in model_results.columns:
+                    display_cols_mr.append(col)
+            mr_display = model_results[display_cols_mr].copy()
+            st.dataframe(mr_display, use_container_width=True, hide_index=True)
+
+            if 'WMAPE' in model_results.columns:
+                st.markdown(f"""
+                <div style='background-color:rgba(74,222,128,0.1); border-left:4px solid #4ADE80; padding:12px; border-radius:8px; margin-top:12px; line-height:1.6;'>
+                    <b style='color:#4ADE80;'>Supervisor Note:</b> WMAPE is the recommended metric for bank presentations.
+                    It uses an aggregate ratio (sum of errors / sum of actuals) rather than averaging individual percentage errors,
+                    making it far less sensitive to near-zero-demand days that inflate standard MAPE.
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Model results file not found. Run the notebook to generate `models/model_results.csv`.")
+    except Exception as e:
+        st.warning(f"Could not load model results: {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 8: FILE UPLOAD (AUTO PREDICT)

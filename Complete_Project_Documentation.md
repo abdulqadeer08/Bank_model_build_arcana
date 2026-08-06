@@ -98,7 +98,21 @@ XGBoost uses "decision trees" and is incredibly powerful at finding non-linear r
 - **MAE (Mean Absolute Error):** **9.36 Million PKR** on the honest uncapped test set. On average, predictions are within 9.36M PKR of actual withdrawals.
 - **R² Score:** **0.6785**. The half-daily production model successfully explains ~67.9% of the variance in the highly volatile cash flow data.
 
+### Percentage-Error Metrics: MAPE, SMAPE, and WMAPE
+
+The project reports three percentage-error metrics side by side to provide a complete picture of model accuracy:
+
+| Metric | Formula | How it works | Known limitation |
+|--------|---------|-------------|-----------------|
+| **MAPE** (Mean Absolute Percentage Error) | `mean(\|actual - predicted\| / \|actual\|) × 100` | Averages individual percentage errors. Excludes rows where actual = 0. | Heavily distorted by near-zero-demand days (e.g., a branch with actual = 2 PKR and predicted = 5 PKR shows 150% error, even though the absolute error is negligible). |
+| **SMAPE** (Symmetric MAPE) | `mean(\|actual - predicted\| / ((\|actual\| + \|predicted\|) / 2)) × 100` | Symmetrically penalizes over- and under-prediction. Excludes rows where both actual and predicted are exactly 0. | Still somewhat sensitive to near-zero values, though less than MAPE. Capped at 200% per observation. |
+| **WMAPE** (Weighted MAPE) | `sum(\|actual - predicted\|) / sum(\|actual\|) × 100` | One aggregate ratio across all observations. Large-volume days naturally dominate, preventing small-value outliers from inflating the metric. | Less granular per-observation insight; can mask poor performance on small branches if aggregated globally. |
+
+**Why WMAPE is recommended for presenting results to the bank:**
+Standard MAPE (132.7%) appears alarmingly high because cash flow data contains many "low-value" or near-zero demand half-day periods (e.g., Sunday afternoons, holiday mornings). A small absolute error of a few thousand PKR on these periods translates to a 100%+ percentage error, which gets averaged into the headline MAPE number. WMAPE avoids this distortion entirely — it computes a single ratio of total absolute error to total actual demand across the dataset, so high-volume periods (which matter most for cash planning) naturally dominate the calculation. This produces a far more representative and stable accuracy number for stakeholder communication.
+
 *Note on V3 Evaluation:* The production pipeline (`v3_pipeline.py`) operates on half-daily intervals (AM/PM) with `tran_br_code` as a categorical feature and `objective='reg:absoluteerror'`, achieving R² = 0.6785, MAE = 9.36M PKR on the honest uncapped test set.
+
 
 ### Stationarity Analysis & Differencing Investigation
 
@@ -152,7 +166,7 @@ The system looks at the historical MAE of *all* branches and calculates the 33rd
 - **MEDIUM Confidence:** Middle third of branches (p33 < MAE ≤ p66).
 - **LOW Confidence:** Top third of branches (MAE > p66). These branches are highly volatile and their forecasts require manual managerial review.
 
-*(Note: While MAE determines the Confidence Tier, MAPE—capped at 150%—is still used to draw proportional upper/lower uncertainty bounds on the final forecast chart.)*
+*(Note: While MAE determines the Confidence Tier, MAPE—capped at 150%—is still used to draw proportional upper/lower uncertainty bounds on the final forecast chart. For stakeholder communication, WMAPE is now also reported alongside MAPE and SMAPE — see the Percentage-Error Metrics section above for why WMAPE is recommended for bank presentations.)*
 
 If the model is retrained and overall accuracy improves, these percentiles dynamically recalculate, ensuring the tiers always accurately represent the "best, average, and worst" branches.
 

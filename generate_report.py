@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import joblib
 from sklearn.metrics import mean_absolute_error, r2_score
+from metrics_utils import smape as calc_smape, wmape as calc_wmape
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -49,6 +50,10 @@ for br, grp in test_df_copy.groupby('tran_br_code'):
     y_true_safe = y_true.replace(0, 1)
     mape = np.mean(np.abs((y_true - y_pred) / y_true_safe)) * 100
     
+    # SMAPE and WMAPE (supervisor-requested)
+    smape_val, _ = calc_smape(y_true.values, y_pred.values)
+    wmape_val = calc_wmape(y_true.values, y_pred.values)
+    
     if len(y_true) > 1:
         r2 = r2_score(y_true, y_pred)
     else:
@@ -59,6 +64,8 @@ for br, grp in test_df_copy.groupby('tran_br_code'):
         'Avg_Demand_M': round(avg_demand, 2),
         'MAE_M': round(mae, 2),
         'MAPE_%': round(mape, 1),
+        'SMAPE_%': round(smape_val, 1) if not np.isnan(smape_val) else 0.0,
+        'WMAPE_%': round(wmape_val, 1) if not np.isnan(wmape_val) else 0.0,
         'R2': round(r2, 4)
     })
 

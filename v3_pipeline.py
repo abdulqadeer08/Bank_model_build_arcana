@@ -8,6 +8,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 import optuna
 import joblib
+from metrics_utils import mape, smape, wmape
 
 warnings.filterwarnings('ignore')
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -55,9 +56,7 @@ os.makedirs('eda_plots/v3', exist_ok=True)
 
 models = {}
 
-def mape(y_true, y_pred):
-    mask = y_true != 0
-    return np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
+# mape, smape, wmape imported from metrics_utils
 
 for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Cash']:
     print(f"\n{'='*50}\nTraining Advanced Model for: {target}\n{'='*50}")
@@ -147,7 +146,12 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
     print(f"  R2: {r2:,.4f}")
     
     if use_log:
-        print(f"  MAPE: {mape(y_test_raw, y_pred):.2f}%")
+        mape_val = mape(y_test_raw, y_pred)
+        smape_val, smape_exc = smape(y_test_raw, y_pred)
+        wmape_val = wmape(y_test_raw, y_pred)
+        print(f"  MAPE:  {mape_val:.2f}%")
+        print(f"  SMAPE: {smape_val:.2f}%" + (f"  ({smape_exc} rows excluded: both actual & predicted = 0)" if smape_exc > 0 else ""))
+        print(f"  WMAPE: {wmape_val:.2f}%  (recommended for bank presentations)")
 
 # Save a config indicating we use log transform
 config = {'targets_using_log1p': ['Half_Day_Total_Debit', 'Half_Day_Total_Credit']}

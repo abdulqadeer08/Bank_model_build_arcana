@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_absolute_error
+from metrics_utils import mape, smape, wmape
 import joblib
 import warnings
 
@@ -73,3 +74,24 @@ print(branch_mae.head(5))
 print("\n--- 2. MAE BY WEEKDAY (HONEST) ---")
 weekday_mae = test_df_copy.groupby('Weekday')['abs_err_honest'].mean().sort_values(ascending=False)
 print(weekday_mae)
+
+# --- SMAPE & WMAPE (supervisor-requested) ---
+print("\n--- 3. OVERALL SMAPE & WMAPE ---")
+overall_mape = mape(test_df_copy['y_test_honest'].values, test_df_copy['pred'].values)
+overall_smape, exc = smape(test_df_copy['y_test_honest'].values, test_df_copy['pred'].values)
+overall_wmape = wmape(test_df_copy['y_test_honest'].values, test_df_copy['pred'].values)
+print(f"MAPE:  {overall_mape:.2f}%")
+print(f"SMAPE: {overall_smape:.2f}%  (excluded {exc} both-zero rows)")
+print(f"WMAPE: {overall_wmape:.2f}%  << recommended for bank presentations")
+
+print("\n--- 4. SMAPE & WMAPE BY BRANCH (TOP 5) ---")
+branch_smape_wmape = []
+for br, grp in test_df_copy.groupby('tran_br_code'):
+    ya = grp['y_test_honest'].values
+    yp = grp['pred'].values
+    s_val, _ = smape(ya, yp)
+    w_val = wmape(ya, yp)
+    m_val = mape(ya, yp)
+    branch_smape_wmape.append({'Branch': br, 'MAPE': round(m_val, 1), 'SMAPE': round(s_val, 1), 'WMAPE': round(w_val, 1)})
+bsw = pd.DataFrame(branch_smape_wmape).sort_values('MAPE', ascending=False)
+print(bsw.head(5).to_string(index=False))
