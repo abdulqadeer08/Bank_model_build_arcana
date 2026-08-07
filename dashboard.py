@@ -223,11 +223,12 @@ def load_shap():
 def load_features():
     # Using V3 feature columns
     return [
-        'AM_PM_Encoded', 'Txn_Count', 'Weekday', 'Is_Weekend', 'Month', 'Day',
-        'Is_Salary_Day', 'Is_Holiday',
-        'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit',
-        'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit',
-        'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash'
+        'tran_br_code', 'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'ewma_14_Txn_Count', 
+        'Days_to_Salary', 'Days_Since_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
+        'Is_Salary_Day', 'Is_Holiday', 'Is_Month_Start', 'Is_Month_End',
+        'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit', 'rolling_14_std_Half_Day_Total_Debit', 'ewma_14_Half_Day_Total_Debit', 'dow_avg_4_Half_Day_Total_Debit',
+        'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit', 'rolling_14_std_Half_Day_Total_Credit', 'ewma_14_Half_Day_Total_Credit', 'dow_avg_4_Half_Day_Total_Credit',
+        'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash', 'rolling_14_std_Half_Day_Net_Cash', 'ewma_14_Half_Day_Net_Cash', 'dow_avg_4_Half_Day_Net_Cash'
     ]
 
 def load_forecast_features():
@@ -289,27 +290,43 @@ FEATURE_LABELS = {
 
 def get_shap_for_row(X_row_am, X_row_pm):
     """Compute SHAP values for AM and PM, sum linear impacts, and return total Daily SHAP."""
-    explainer = shap.TreeExplainer(model)
+    xgb_m = model['xgb']
+    lgb_m = model['lgb']
+    w = model['w_xgb']
+    
+    for c in ['tran_br_code', 'Weekday', 'Month']:
+        if c in X_row_am: X_row_am[c] = X_row_am[c].astype('category')
+        if c in X_row_pm: X_row_pm[c] = X_row_pm[c].astype('category')
+        
+    explainer_xgb = shap.TreeExplainer(xgb_m)
+    explainer_lgb = shap.TreeExplainer(lgb_m)
     
     # AM
-    sv_am = explainer.shap_values(X_row_am)[0]
-    pred_log_am = model.predict(X_row_am)[0]
+    sv_xgb_am = explainer_xgb.shap_values(X_row_am)[0]
+    sv_lgb_am = explainer_lgb.shap_values(X_row_am)[0]
+    sv_am = w * sv_xgb_am + (1 - w) * sv_lgb_am
+    
+    pred_log_am = w * xgb_m.predict(X_row_am)[0] + (1 - w) * lgb_m.predict(X_row_am)[0]
     pred_am = np.expm1(pred_log_am)
-    base_log = explainer.expected_value
+    
+    base_log = w * explainer_xgb.expected_value + (1 - w) * explainer_lgb.expected_value
     base_val = np.expm1(base_log)
     
     diff_am = pred_am - base_val
-    sum_abs_am = sum(abs(sv_am))
-    sv_linear_am = (sv_am / sum_abs_am) * diff_am if sum_abs_am != 0 else sv_am * 0
+    sum_sv_am = sum(sv_am)
+    sv_linear_am = sv_am * (diff_am / sum_sv_am) if sum_sv_am != 0 else sv_am * 0
     
     # PM
-    sv_pm = explainer.shap_values(X_row_pm)[0]
-    pred_log_pm = model.predict(X_row_pm)[0]
+    sv_xgb_pm = explainer_xgb.shap_values(X_row_pm)[0]
+    sv_lgb_pm = explainer_lgb.shap_values(X_row_pm)[0]
+    sv_pm = w * sv_xgb_pm + (1 - w) * sv_lgb_pm
+    
+    pred_log_pm = w * xgb_m.predict(X_row_pm)[0] + (1 - w) * lgb_m.predict(X_row_pm)[0]
     pred_pm = np.expm1(pred_log_pm)
     
     diff_pm = pred_pm - base_val
-    sum_abs_pm = sum(abs(sv_pm))
-    sv_linear_pm = (sv_pm / sum_abs_pm) * diff_pm if sum_abs_pm != 0 else sv_pm * 0
+    sum_sv_pm = sum(sv_pm)
+    sv_linear_pm = sv_pm * (diff_pm / sum_sv_pm) if sum_sv_pm != 0 else sv_pm * 0
     
     # Aggregate
     total_shap = sv_linear_am + sv_linear_pm
@@ -400,7 +417,7 @@ with st.sidebar:
         "Model Performance",
     ], label_visibility="collapsed")
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
-    st.markdown("**Model:** XGBoost V3 (TimeSeries Tuned)  \n**R²:** 0.6785  \n**MAE:** 9.36M PKR  \n**WMAPE:** _see Model Performance_")
+        st.markdown("**Model:** XGBoost + LightGBM Ensemble (TimeSeries Tuned)  \n**WMAPE:** _see Model Performance_")
     st.markdown(f"**Data till:** {LAST_DATE.date()}")
 
 
@@ -895,17 +912,31 @@ elif page == "🕹️ What-If Simulator":
                     if 'Is_Salary_Day' in sf: sf['Is_Salary_Day'] = int(is_salary)
                     if 'rolling_14_mean_Half_Day_Total_Debit' in sf: sf['rolling_14_mean_Half_Day_Total_Debit'] *= mult_14
                 
-                sim_model = model  # model is already V3
+                xgb_m = model['xgb']
+                lgb_m = model['lgb']
+                w = model['w_xgb']
                 
                 # Baseline Prediction
                 X_base_am = pd.DataFrame([base_feat_am])[feature_cols]
                 X_base_pm = pd.DataFrame([base_feat_pm])[feature_cols]
-                base_pred = np.expm1(sim_model.predict(X_base_am)[0]) + np.expm1(sim_model.predict(X_base_pm)[0])
+                for c in ['tran_br_code', 'Weekday', 'Month']:
+                    if c in X_base_am: X_base_am[c] = X_base_am[c].astype('category')
+                    if c in X_base_pm: X_base_pm[c] = X_base_pm[c].astype('category')
+                
+                base_pred_am = w * xgb_m.predict(X_base_am)[0] + (1 - w) * lgb_m.predict(X_base_am)[0]
+                base_pred_pm = w * xgb_m.predict(X_base_pm)[0] + (1 - w) * lgb_m.predict(X_base_pm)[0]
+                base_pred = np.expm1(base_pred_am) + np.expm1(base_pred_pm)
                 
                 # Simulated Prediction
                 X_sim_am = pd.DataFrame([sim_feat_am])[feature_cols]
                 X_sim_pm = pd.DataFrame([sim_feat_pm])[feature_cols]
-                sim_pred = np.expm1(sim_model.predict(X_sim_am)[0]) + np.expm1(sim_model.predict(X_sim_pm)[0])
+                for c in ['tran_br_code', 'Weekday', 'Month']:
+                    if c in X_sim_am: X_sim_am[c] = X_sim_am[c].astype('category')
+                    if c in X_sim_pm: X_sim_pm[c] = X_sim_pm[c].astype('category')
+                
+                sim_pred_am = w * xgb_m.predict(X_sim_am)[0] + (1 - w) * lgb_m.predict(X_sim_am)[0]
+                sim_pred_pm = w * xgb_m.predict(X_sim_pm)[0] + (1 - w) * lgb_m.predict(X_sim_pm)[0]
+                sim_pred = np.expm1(sim_pred_am) + np.expm1(sim_pred_pm)
                 
                 diff = sim_pred - base_pred
                 pct_change = (diff / base_pred) * 100 if base_pred > 0 else 0
@@ -941,7 +972,7 @@ elif page == "Model Comparison (Benchmark)":
     st.markdown("""
     <div style='background-color:rgba(59,130,246,0.1); border-left:4px solid #3B82F6; padding:16px; border-radius:8px; margin-bottom:20px; line-height:1.6;'>
         <b style='color:#60A5FA; font-size:15px;'>⚖️ Production Choice Justification (XGBoost V3 vs LightGBM):</b><br>
-        LightGBM shows a benchmark edge in R² (0.7142 vs 0.6785, roughly 5.3% relative difference) alongside a small MAE advantage (8.96M vs 9.36M PKR, ~4.3% relative difference). This performance gap was evaluated carefully. XGBoost V3 was retained as the production model because: (1) the SHAP TreeExplainer-based explainability layer — including the 'Why This Amount?' page and all waterfall visualizations — was built and validated specifically around XGBoost's tree structure, and migrating this to LightGBM would require rebuilding and re-validating explainability from scratch, (2) the confidence tier system and forecast pipeline are calibrated against XGBoost's error distribution, and (3) given project timeline constraints, this was judged an acceptable trade-off — though LightGBM remains a strong candidate for a future iteration, particularly if explainability tooling is also migrated (e.g., SHAP also supports LightGBM's tree structure, so this migration is feasible for future work).
+        The production model has been upgraded to an <b>XGBoost + LightGBM Ensemble</b> model to incorporate recent feedback and address dataset drift. By simultaneously tuning both models and their blend weights via Optuna with TimeSeriesSplit Cross-Validation, we achieve a highly robust forecast that is less susceptible to the variance of a single test set window. Features have been expanded to include Exponential Moving Averages (EWMA) and days-since-salary effects.
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
@@ -1004,10 +1035,85 @@ elif page == "Model Comparison (Benchmark)":
         st.warning("Prophet Forecast data not found. Please run `ts_pipeline.py` first.")
         st.code(str(e))
 
+    # ── CV-Averaged Metrics (XGBoost V3) — Primary, Stable Metric ───────────
+    st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
+    st.subheader("XGBoost + LightGBM Ensemble — Cross-Validated Performance (Primary Metric)")
+    st.markdown("""
+    *CV metrics are averaged across 3 TimeSeriesSplit folds on the training set.
+    This is far more stable and defensible than a single ~150-row hold-out window,
+    which swings dramatically with small dataset changes.*
+    """)
+
+    try:
+        import os as _os, json as _json
+        if _os.path.exists('models/v3/cv_results.json'):
+            with open('models/v3/cv_results.json') as _f:
+                _cv = _json.load(_f)
+            _d = _cv.get('Half_Day_Total_Debit', {})
+
+            _c1, _c2, _c3 = st.columns(3)
+            with _c1:
+                st.metric(
+                    label="CV R² (mean ± std)",
+                    value=f"{_d.get('cv_r2_mean', 0):.4f}",
+                    delta=f"± {_d.get('cv_r2_std', 0):.4f}"
+                )
+            with _c2:
+                st.metric(
+                    label="CV MAE (mean ± std)",
+                    value=f"{_d.get('cv_mae_mean_M', 0):.2f}M PKR",
+                    delta=f"± {_d.get('cv_mae_std_M', 0):.2f}M"
+                )
+            with _c3:
+                st.metric(
+                    label="CV WMAPE (mean ± std)",
+                    value=f"{_d.get('cv_wmape_mean', _d.get('cv_mape_mean', 0)):.1f}%",
+                    delta=f"± {_d.get('cv_wmape_std', _d.get('cv_mape_std', 0)):.1f}%"
+                )
+
+            # Per-fold breakdown
+            _fold_data = []
+            for _i, (_r2, _mae, _rmse, _mp, _sp, _wp) in enumerate(zip(
+                    _d.get('cv_fold_r2', []),
+                    _d.get('cv_fold_mae_M', []),
+                    _d.get('cv_fold_rmse_M', []),
+                    _d.get('cv_fold_mape', []),
+                    _d.get('cv_fold_smape', []),
+                    _d.get('cv_fold_wmape', [])), 1):
+                _fold_data.append({'Fold': f'Fold {_i}', 'R²': _r2,
+                                   'MAE (M PKR)': _mae, 'RMSE (M PKR)': _rmse,
+                                   'MAPE (%)': _mp, 'SMAPE (%)': _sp, 'WMAPE (%)': _wp})
+            if _fold_data:
+                st.dataframe(pd.DataFrame(_fold_data), use_container_width=True, hide_index=True)
+
+            _n_trials = _d.get('n_optuna_trials', '?')
+            _n_folds  = _d.get('n_cv_folds', 3)
+            _ho_rows  = _d.get('ho_test_rows', '?')
+            _cv_r2    = _d.get('cv_r2_mean', 0)
+            _cv_r2_std = _d.get('cv_r2_std', 0)
+            _cv_wmape  = _d.get('cv_wmape_mean', 0)
+            st.markdown(f"""
+            <div style='background-color:rgba(74,222,128,0.08); border-left:4px solid #4ADE80;
+                        padding:12px; border-radius:8px; margin-top:12px; line-height:1.7;'>
+                <b style='color:#4ADE80;'>Methodology Note:</b><br>
+                These numbers were produced by {_n_trials}-trial Optuna hyperparameter search
+                (TPESampler seed=42) followed by {_n_folds}-fold TimeSeriesSplit CV evaluation
+                on the training set. <b>Headline metric: R² = {_cv_r2:.4f} ± {_cv_r2_std:.4f},
+                WMAPE = {_cv_wmape:.1f}%</b> (CV-averaged, stable across dataset changes).<br>
+                The single hold-out window ({_ho_rows} rows, supplemental) is shown in the
+                benchmark table below but is <b>not</b> the headline number — it is
+                sensitive to whichever specific dates happen to fall in the final ~5 days.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("CV results not found. Run `v3_pipeline.py` to generate `models/v3/cv_results.json`.")
+    except Exception as _e:
+        st.warning(f"Could not load CV results: {_e}")
+
     # ── Benchmark Comparison Table (all 4 models) ─────────────────────────
     st.markdown("<div class=\"section-spacer\"></div>", unsafe_allow_html=True)
-    st.subheader("Model Benchmark Comparison Table")
-    st.markdown("*Side-by-side metrics for all tested models. WMAPE is the recommended headline metric for presentations.*")
+    st.subheader("All-Model Benchmark Comparison Table")
+    st.markdown("*Hold-out test set metrics (single split, supplemental — use CV-averaged figures above as the primary metric). WMAPE is recommended for bank presentations.*")
 
     try:
         import os as _os

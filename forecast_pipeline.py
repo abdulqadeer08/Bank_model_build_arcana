@@ -99,17 +99,37 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
     branch_avgs = history.groupby('tran_br_code')['Txn_Count'].mean().to_dict()
     last_date = history['start_date'].max()
     
-    # 3. Load V3 Models
-    model_debit = joblib.load('models/v3/model_Half_Day_Total_Debit.pkl')
-    model_credit = joblib.load('models/v3/model_Half_Day_Total_Credit.pkl')
-    model_net = joblib.load('models/v3/model_Half_Day_Net_Cash.pkl')
-    
+    # 3. Load V3 Ensemble Models
+    def load_ensemble(path):
+        """Load a V3 ensemble (dict or single model) and return a predict function."""
+        obj = joblib.load(path)
+        if isinstance(obj, dict):
+            xgb_m = obj['xgb']
+            lgb_m = obj['lgb']
+            w     = obj['w_xgb']
+            def predict_fn(X):
+                return w * xgb_m.predict(X) + (1 - w) * lgb_m.predict(X)
+            return predict_fn
+        else:
+            return obj.predict
+
+    predict_debit  = load_ensemble('models/v3/model_Half_Day_Total_Debit.pkl')
+    predict_credit = load_ensemble('models/v3/model_Half_Day_Total_Credit.pkl')
+    predict_net    = load_ensemble('models/v3/model_Half_Day_Net_Cash.pkl')
+
     feature_cols = [
-        'tran_br_code', 'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'Days_to_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
-        'Is_Salary_Day', 'Is_Holiday',
-        'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit', 'rolling_14_std_Half_Day_Total_Debit',
-        'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit', 'rolling_14_std_Half_Day_Total_Credit',
-        'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash', 'rolling_14_std_Half_Day_Net_Cash'
+        'tran_br_code', 'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count',
+        'ewma_14_Txn_Count', 'Days_to_Salary', 'Days_Since_Salary', 'Weekday', 'Is_Weekend',
+        'Month', 'Day', 'Is_Salary_Day', 'Is_Holiday', 'Is_Month_Start', 'Is_Month_End',
+        'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit',
+        'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit',
+        'rolling_14_std_Half_Day_Total_Debit', 'ewma_14_Half_Day_Total_Debit', 'dow_avg_4_Half_Day_Total_Debit',
+        'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit',
+        'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit',
+        'rolling_14_std_Half_Day_Total_Credit', 'ewma_14_Half_Day_Total_Credit', 'dow_avg_4_Half_Day_Total_Credit',
+        'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash',
+        'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash',
+        'rolling_14_std_Half_Day_Net_Cash', 'ewma_14_Half_Day_Net_Cash', 'dow_avg_4_Half_Day_Net_Cash'
     ]
     
     working_history = history.sort_values(['tran_br_code', 'start_date', 'AM_PM']).groupby('tran_br_code').tail(65).copy()
@@ -136,7 +156,11 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
                     'Day': target_date.day,
                     'Is_Salary_Day': is_salary_day(target_date.day),
                     'Is_Holiday': 1 if target_date in pk_holidays else 0,
-                    'Days_to_Salary': max(0, min(25, 25 - target_date.day if target_date.day < 25 else (31 - target_date.day + 5)))
+                    'Days_to_Salary': max(0, min(25, 25 - target_date.day if target_date.day < 25 else (31 - target_date.day + 5))),
+                    'Days_Since_Salary': target_date.day - 25 if target_date.day >= 25 else target_date.day + (31 - 25),
+                    'Is_Month_Start': 1 if target_date.day == 1 else 0,
+                    'Is_Month_End': 1 if target_date.day in [28, 29, 30, 31] and (target_date + pd.Timedelta(days=1)).month != target_date.month else 0,
+                    'ewma_14_Txn_Count': br_hist['Txn_Count'].tail(14).mean() if len(br_hist) > 0 else branch_avgs.get(branch, 0)
                 }
                 
                 try:
@@ -155,24 +179,33 @@ def generate_forecast(new_raw_df=None, forecast_days=30, history_path='model_dat
                         row[f'lag_60_{t_col}'] = br_hist[t_col].iloc[-60]
                         row[f'rolling_14_mean_{t_col}'] = br_hist[t_col].tail(14).mean()
                         row[f'rolling_14_std_{t_col}'] = br_hist[t_col].tail(14).std() if len(br_hist[t_col]) > 1 else 0
-                    except IndexError:
+                        row[f'ewma_14_{t_col}'] = br_hist[t_col].tail(14).mean()  # approx ewma
+                        # dow_avg_4: average of last 4 same weekday+ampm entries (approximate)
+                        same_slot = br_hist[(br_hist.get('Weekday', br_hist.index) == target_date.weekday()) &
+                                            (br_hist.get('AM_PM', '') == am_pm)][t_col] if 'Weekday' in br_hist.columns else br_hist[t_col]
+                        row[f'dow_avg_4_{t_col}'] = same_slot.tail(4).mean() if len(same_slot) > 0 else row[f'rolling_14_mean_{t_col}']
+                    except (IndexError, KeyError):
                         row[f'lag_1_{t_col}'] = 0
                         row[f'lag_2_{t_col}'] = 0
                         row[f'lag_14_{t_col}'] = 0
                         row[f'lag_60_{t_col}'] = 0
                         row[f'rolling_14_mean_{t_col}'] = 0
                         row[f'rolling_14_std_{t_col}'] = 0
+                        row[f'ewma_14_{t_col}'] = 0
+                        row[f'dow_avg_4_{t_col}'] = 0
                 
                 x_df = pd.DataFrame([row])[feature_cols]
                 x_df['tran_br_code'] = x_df['tran_br_code'].astype('category')
+                x_df['Weekday'] = x_df['Weekday'].astype('category')
+                x_df['Month'] = x_df['Month'].astype('category')
                 
-                # Inverse Transform V3 Models (log1p applied during training)
-                pred_dr_log = model_debit.predict(x_df)[0]
-                pred_cr_log = model_credit.predict(x_df)[0]
-                
+                # Inverse Transform V3 Ensemble (log1p applied during training)
+                pred_dr_log = predict_debit(x_df)[0]
+                pred_cr_log = predict_credit(x_df)[0]
+
                 pred_dr = np.expm1(pred_dr_log)
                 pred_cr = np.expm1(pred_cr_log)
-                pred_net = model_net.predict(x_df)[0]  # Net cash is raw
+                pred_net = predict_net(x_df)[0]  # Net cash is raw
                 
                 pred_dr = max(0, pred_dr)
                 pred_cr = max(0, pred_cr)

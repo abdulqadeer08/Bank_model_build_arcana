@@ -1,0 +1,203 @@
+{
+  "Half_Day_Total_Debit": {
+    "n_optuna_trials": 50,
+    "n_cv_folds": 3,
+    "best_params": {
+      "w_xgb": 0.6517957264019889,
+      "xgb_n_estimators": 250,
+      "xgb_learning_rate": 0.02948896772492471,
+      "xgb_max_depth": 4,
+      "xgb_subsample": 0.6469062413390847,
+      "xgb_colsample": 0.8569496416129232,
+      "lgb_n_estimators": 400,
+      "lgb_learning_rate": 0.07873110807094881,
+      "lgb_max_depth": 5,
+      "lgb_subsample": 0.885201869858418,
+      "lgb_colsample": 0.6715662379644938
+    },
+    "w_xgb": 0.6517957264019889,
+    "cv_mae_mean_M": 8.825,
+    "cv_mae_std_M": 3.252,
+    "cv_rmse_mean_M": 17.506,
+    "cv_rmse_std_M": 12.152,
+    "cv_r2_mean": 0.5687,
+    "cv_r2_std": 0.0581,
+    "cv_mape_mean": 826.22,
+    "cv_mape_std": 1071.37,
+    "cv_smape_mean": 51.94,
+    "cv_smape_std": 1.22,
+    "cv_wmape_mean": 39.52,
+    "cv_wmape_std": 3.29,
+    "cv_fold_mae_M": [
+      5.797,
+      12.263,
+      8.415
+    ],
+    "cv_fold_rmse_M": [
+      8.418,
+      31.309,
+      12.792
+    ],
+    "cv_fold_r2": [
+      0.5626,
+      0.5139,
+      0.6297
+    ],
+    "cv_fold_mape": [
+      162.8,
+      253.65,
+      2062.22
+    ],
+    "cv_fold_smape": [
+      52.48,
+      52.8,
+      50.55
+    ],
+    "cv_fold_wmape": [
+      38.27,
+      43.25,
+      37.04
+    ],
+    "ho_test_rows": 164,
+    "ho_mae_M": 12.752,
+    "ho_rmse_M": 32.062,
+    "ho_r2": 0.5292,
+    "ho_mape": 141.27,
+    "ho_smape": 58.05,
+    "ho_wmape": 46.03
+  },
+  "Half_Day_Total_Credit": {
+    "n_optuna_trials": 50,
+    "n_cv_folds": 3,
+    "best_params": {
+      "w_xgb": 0.774194331458483,
+      "xgb_n_estimators": 400,
+      "xgb_learning_rate": 0.025208933052289724,
+      "xgb_max_depth": 5,
+      "xgb_subsample": 0.6344203549430697,
+      "xgb_colsample": 0.6209169473284414,
+      "lgb_n_estimators": 400,
+      "lgb_learning_rate": 0.05874428195415048,
+      "lgb_max_depth": 6,
+      "lgb_subsample": 0.8880530444111427,
+      "lgb_colsample": 0.9128287995334412
+    },
+    "w_xgb": 0.774194331458483,
+    "cv_mae_mean_M": 9.983,
+    "cv_mae_std_M": 3.769,
+    "cv_rmse_mean_M": 20.431,
+    "cv_rmse_std_M": 12.316,
+    "cv_r2_mean": 0.4055,
+    "cv_r2_std": 0.043,
+    "cv_mape_mean": 616.57,
+    "cv_mape_std": 808.71,
+    "cv_smape_mean": 50.12,
+    "cv_smape_std": 3.52,
+    "cv_wmape_mean": 43.95,
+    "cv_wmape_std": 3.87,
+    "cv_fold_mae_M": [
+      6.15,
+      13.683,
+      10.117
+    ],
+    "cv_fold_rmse_M": [
+      10.062,
+      34.045,
+      17.187
+    ],
+    "cv_fold_r2": [
+      0.3844,
+      0.377,
+      0.455
+    ],
+    "cv_fold_mape": [
+      151.27,
+      148.06,
+      1550.39
+    ],
+    "cv_fold_smape": [
+      46.42,
+      50.52,
+      53.43
+    ],
+    "cv_fold_wmape": [
+      40.2,
+      47.93,
+      43.71
+    ],
+    "ho_test_rows": 164,
+    "ho_mae_M": 14.233,
+    "ho_rmse_M": 34.088,
+    "ho_r2": 0.4836,
+    "ho_mape": 103.14,
+    "ho_smape": 55.9,
+    "ho_wmape": 50.46
+  },
+  "Half_Day_Net_Cash": {
+    "n_optuna_trials": 50,
+    "n_cv_folds": 3,
+    "best_params": {
+      "w_xgb": 0.20730122208202095,
+      "xgb_n_estimators": 300,
+      "xgb_learning_rate": 0.06901103446017531,
+      "xgb_max_depth": 7,
+      "xgb_subsample": 0.6036876369319052,
+      "xgb_colsample": 0.6414209784640916,
+      "lgb_n_estimators": 400,
+      "lgb_learning_rate": 0.034881822699178874,
+      "lgb_max_depth": 7,
+      "lgb_subsample": 0.6530944828698295,
+      "lgb_colsample": 0.8739929913534338
+    },
+    "w_xgb": 0.20730122208202095,
+    "cv_mae_mean_M": 7.282,
+    "cv_mae_std_M": 2.806,
+    "cv_rmse_mean_M": 15.268,
+    "cv_rmse_std_M": 9.287,
+    "cv_r2_mean": 0.2419,
+    "cv_r2_std": 0.0572,
+    "cv_mape_mean": 618.52,
+    "cv_mape_std": 323.07,
+    "cv_smape_mean": 125.38,
+    "cv_smape_std": 1.48,
+    "cv_wmape_mean": 84.28,
+    "cv_wmape_std": 1.94,
+    "cv_fold_mae_M": [
+      4.92,
+      10.384,
+      6.543
+    ],
+    "cv_fold_rmse_M": [
+      7.73,
+      25.643,
+      12.432
+    ],
+    "cv_fold_r2": [
+      0.2813,
+      0.1763,
+      0.2679
+    ],
+    "cv_fold_mape": [
+      907.29,
+      269.6,
+      678.67
+    ],
+    "cv_fold_smape": [
+      123.7,
+      126.0,
+      126.46
+    ],
+    "cv_fold_wmape": [
+      83.53,
+      86.48,
+      82.83
+    ],
+    "ho_test_rows": 164,
+    "ho_mae_M": 7.231,
+    "ho_rmse_M": 12.535,
+    "ho_r2": 0.2542,
+    "ho_mape": 801.43,
+    "ho_smape": 130.67,
+    "ho_wmape": 85.34
+  }
+}

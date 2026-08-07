@@ -1,0 +1,11 @@
+{
+  "n_estimators": 150,
+  "learning_rate": 0.03286183493697373,
+  "max_depth": 6,
+  "subsample": 0.606569993802787,
+  "colsample_bytree": 0.6578878784972938,
+  "min_child_weight": 2,
+  "enable_categorical": true,
+  "random_state": 42,
+  "objective": "reg:absoluteerror"
+}

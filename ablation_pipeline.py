@@ -28,27 +28,27 @@ df = pd.read_csv('model_data/half_daily_features.csv')
 df['start_date'] = pd.to_datetime(df['start_date'])
 
 df['Days_to_Salary'] = df['Day'].apply(lambda d: 25 - d if d < 25 else (31 - d + 5)).clip(lower=0, upper=25)
-df['Days_Since_Salary'] = df['Day'].apply(lambda d: d - 25 if d >= 25 else d + (31 - 25))
-df['Is_Month_Start'] = df['start_date'].dt.is_month_start.astype(int)
-df['Is_Month_End'] = df['start_date'].dt.is_month_end.astype(int)
+df[] = df['Day'].apply(lambda d: d - 25 if d >= 25 else d + (31 - 25))
+df[] = df['start_date'].dt.is_month_start.astype(int)
+df[] = df['start_date'].dt.is_month_end.astype(int)
 
 df = df.sort_values(['tran_br_code', 'start_date', 'AM_PM_Encoded']).reset_index(drop=True)
 df['lag_1_Txn_Count'] = df.groupby('tran_br_code')['Txn_Count'].shift(1).fillna(0)
 df['rolling_14_mean_Txn_Count'] = df.groupby('tran_br_code')['Txn_Count'].transform(lambda x: x.shift(1).rolling(14, min_periods=1).mean()).fillna(0)
-df['ewma_14_Txn_Count'] = df.groupby('tran_br_code')['Txn_Count'].transform(lambda x: x.shift(1).ewm(span=14, adjust=False).mean()).fillna(0)
+df[] = df.groupby('tran_br_code')['Txn_Count'].transform(lambda x: x.shift(1).ewm(span=14, adjust=False).mean()).fillna(0)
 
-for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Cash']:
+for target in ['Half_Day_Total_Debit']:
     df[f'rolling_14_std_{target}'] = df.groupby('tran_br_code')[target].transform(lambda x: x.shift(1).rolling(14, min_periods=2).std()).fillna(0)
     df[f'ewma_14_{target}'] = df.groupby('tran_br_code')[target].transform(lambda x: x.shift(1).ewm(span=14, adjust=False).mean()).fillna(0)
     df[f'dow_avg_4_{target}'] = df.groupby(['tran_br_code', 'Weekday', 'AM_PM_Encoded'])[target].transform(lambda x: x.shift(1).rolling(4, min_periods=1).mean()).fillna(0)
 
 feature_cols = [
-    'tran_br_code', 'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 'ewma_14_Txn_Count', 
-    'Days_to_Salary', 'Days_Since_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
-    'Is_Salary_Day', 'Is_Holiday', 'Is_Month_Start', 'Is_Month_End',
-    'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit', 'rolling_14_std_Half_Day_Total_Debit', 'ewma_14_Half_Day_Total_Debit', 'dow_avg_4_Half_Day_Total_Debit',
-    'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit', 'rolling_14_std_Half_Day_Total_Credit', 'ewma_14_Half_Day_Total_Credit', 'dow_avg_4_Half_Day_Total_Credit',
-    'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash', 'rolling_14_std_Half_Day_Net_Cash', 'ewma_14_Half_Day_Net_Cash', 'dow_avg_4_Half_Day_Net_Cash'
+    'tran_br_code', 'AM_PM_Encoded', 'lag_1_Txn_Count', 'rolling_14_mean_Txn_Count', 
+    'Days_to_Salary', 'Weekday', 'Is_Weekend', 'Month', 'Day',
+    'Is_Salary_Day', 'Is_Holiday',
+    'lag_1_Half_Day_Total_Debit', 'lag_2_Half_Day_Total_Debit', 'lag_14_Half_Day_Total_Debit', 'lag_60_Half_Day_Total_Debit', 'rolling_14_mean_Half_Day_Total_Debit', 'rolling_14_std_Half_Day_Total_Debit',
+    'lag_1_Half_Day_Total_Credit', 'lag_2_Half_Day_Total_Credit', 'lag_14_Half_Day_Total_Credit', 'lag_60_Half_Day_Total_Credit', 'rolling_14_mean_Half_Day_Total_Credit', 'rolling_14_std_Half_Day_Total_Credit',
+    'lag_1_Half_Day_Net_Cash', 'lag_2_Half_Day_Net_Cash', 'lag_14_Half_Day_Net_Cash', 'lag_60_Half_Day_Net_Cash', 'rolling_14_mean_Half_Day_Net_Cash', 'rolling_14_std_Half_Day_Net_Cash'
 ]
 
 df['tran_br_code'] = df['tran_br_code'].astype('category')
@@ -73,7 +73,7 @@ os.makedirs('models/v3', exist_ok=True)
 cv_summary = {}
 
 # ── 3. Modeling ───────────────────────────────────────────────────────────────
-for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Cash']:
+for target in ['Half_Day_Total_Debit']:
     print(f"\n{'='*55}\nTraining Advanced Ensemble Model for: {target}\n{'='*55}")
 
     y_train_raw = train_df[target]
@@ -205,7 +205,7 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
     final_lgb = lgb.LGBMRegressor(**lgb_params, objective='mae')
     final_lgb.fit(X_train, y_train)
 
-    joblib.dump({'xgb': final_xgb, 'lgb': final_lgb, 'w_xgb': w_xgb}, f'models/v3/model_{target}.pkl')
+    joblib.dump({'xgb': final_xgb, 'lgb': final_lgb, 'w_xgb': w_xgb}, f'models/ablation/model_{target}.pkl')
     
     # ── 6. Hold-out test set evaluation ───────────────────────────────────────
     p_xgb = final_xgb.predict(X_test)
@@ -266,9 +266,9 @@ for target in ['Half_Day_Total_Debit', 'Half_Day_Total_Credit', 'Half_Day_Net_Ca
         'ho_wmape'          : round(ho_wmape_val, 2),
     }
 
-with open('models/v3/v3_config.json', 'w') as f:
+with open('models/ablation/v3_config.json', 'w') as f:
     json.dump({'targets_using_log1p': ['Half_Day_Total_Debit', 'Half_Day_Total_Credit']}, f)
-with open('models/v3/cv_results.json', 'w') as f:
+with open('models/ablation/cv_results.json', 'w') as f:
     json.dump(cv_summary, f, indent=2)
 
 print("\nV3 Ensemble Pipeline completed successfully.")

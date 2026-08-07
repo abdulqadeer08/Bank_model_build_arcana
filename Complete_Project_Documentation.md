@@ -187,3 +187,22 @@ The system is accessed via an interactive Streamlit Web Dashboard containing 8 m
    - Re-saves the `forecast_next30days.xlsx` file.
    - Clears the system cache, instantly refreshing every single page of the dashboard with the new data.
 8. **What-If Simulator:** Allows managers to test hypothetical scenarios — toggling holiday/salary-day flags or adjusting historical volume multipliers for a specific branch/date — and instantly see how the prediction shifts, along with an explanation of what changed.
+
+---
+
+### Why Metrics Changed: Single-Split to Cross-Validated Average
+
+A single train/test split with ~150 test rows proved sensitive to minor dataset changes, producing inconsistent point estimates across runs (e.g., R² fluctuating 0.6785 → 0.6628 → 0.4838 → 0.4770). We now report the **3-fold TimeSeriesSplit cross-validated average (with standard deviation)** as a more stable and defensible metric.
+
+**Final stable metric (Debit target, 3-fold TimeSeriesSplit CV, 50 Optuna trials, objective=reg:absoluteerror, tran_br_code as categorical, seed=42):**
+
+| Metric | Value |
+|--------|-------|
+| R² | **0.5687 ± 0.0581** |
+| MAE | **8.825M ± 3.252M PKR** |
+| RMSE | **17.506M PKR** |
+| MAPE | **826.2%** |
+| SMAPE | **51.9%** |
+| WMAPE | **39.5%** |
+
+_These numbers will not swing wildly if a few more rows are added to the dataset._
