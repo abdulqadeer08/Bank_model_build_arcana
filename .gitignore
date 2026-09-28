@@ -6,10 +6,18 @@ __pycache__/
 *.py[co]
 .venv/
 
-# Data is not committed; the notebook downloads it from Google Drive
+# Bank dataset: never commit it. The notebook downloads it from Google Drive.
 data/
+Bank Cash Optimization.xlsx
+bank_cash_data*.xlsx
+bank_cash_optimization_features.csv
 *.xlsx
+*.xls
 *.csv
+*.parquet
+
+# Prophet models store a full copy of their training data (branch debit history)
+models/prophet/
 
 # Backups
 *.bak
