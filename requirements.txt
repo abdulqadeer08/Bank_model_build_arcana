@@ -1,0 +1,15 @@
+# Tested with Python 3.14, pandas 3.0, xgboost 3.4, lightgbm 4.7, shap 0.52
+pandas
+numpy
+scikit-learn
+xgboost
+lightgbm
+optuna
+shap
+prophet
+statsmodels
+matplotlib
+seaborn
+openpyxl
+joblib
+streamlit

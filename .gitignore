@@ -1,11 +1,15 @@
-# Jupyter Notebook
+# Jupyter
 .ipynb_checkpoints/
 
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[co]
+.venv/
 
-# Datasets
+# Data is not committed; the notebook downloads it from Google Drive
+data/
 *.xlsx
 *.csv
+
+# Backups
+*.bak
